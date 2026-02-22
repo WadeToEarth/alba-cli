@@ -4,10 +4,9 @@ import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { neon, tag } from '../lib/colors.mjs';
-import { checkHealth, createProject, recordTask, advancePhase } from '../lib/api.mjs';
+import { checkHealth, createProject } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
-import { PHASES, getTaskReward } from '../lib/phases.mjs';
 import { randomProjectName, randomTag } from '../lib/project-names.mjs';
 import { isAuthenticated, loadCredentials, saveCredentials } from '../lib/auth.mjs';
 
@@ -44,7 +43,7 @@ async function autoLogin() {
               return;
             }
 
-            saveCredentials(data.idToken, data.user || {});
+            saveCredentials(data.idToken, data.user || {}, data.refreshToken || '');
 
             res.writeHead(200);
             res.end(JSON.stringify({ success: true }));
@@ -163,10 +162,7 @@ console.log(neon.green(`  ═══ New Project: ${projectName} ═══`));
 console.log(`  ${neon.dim('Tag:')} ${neon.cyan(projectTag)}`);
 console.log();
 
-// ── Phase 1: Ideation ──────────────────────────────────
-
-const phase1 = PHASES[0];
-console.log(`  ${tag.phase} ${neon.magenta(`═══ Phase 1: ${phase1.label} ═══`)}`);
+// ── Create project on backend ────────────────────────────
 
 if (online) {
   try {
@@ -178,55 +174,6 @@ if (online) {
     console.log(`  ${tag.error} ${neon.red('Failed to create project:')} ${err.message}`);
   }
 }
-
-// Record Phase 1 tasks
-for (const taskDef of phase1.tasks) {
-  if (online && projectId) {
-    try {
-      await recordTask({
-        projectId,
-        phase: phase1.phase,
-        phaseLabel: phase1.label,
-        taskName: taskDef.name,
-        taskDescription: taskDef.description,
-        reward: getTaskReward(taskDef.rewardRange),
-      });
-    } catch {}
-  }
-  console.log(`  ${tag.task} ${neon.green('✓')} ${neon.dim(taskDef.name)}`);
-}
-
-if (online && projectId) {
-  try { await advancePhase(projectId, 2); } catch {}
-}
-console.log(`  ${tag.phase} ${neon.dim('Phase 1 complete')}`);
-console.log();
-
-// ── Phase 2: Requirements ──────────────────────────────
-
-const phase2 = PHASES[1];
-console.log(`  ${tag.phase} ${neon.magenta(`═══ Phase 2: ${phase2.label} ═══`)}`);
-
-for (const taskDef of phase2.tasks) {
-  if (online && projectId) {
-    try {
-      await recordTask({
-        projectId,
-        phase: phase2.phase,
-        phaseLabel: phase2.label,
-        taskName: taskDef.name,
-        taskDescription: taskDef.description,
-        reward: getTaskReward(taskDef.rewardRange),
-      });
-    } catch {}
-  }
-  console.log(`  ${tag.task} ${neon.green('✓')} ${neon.dim(taskDef.name)}`);
-}
-
-if (online && projectId) {
-  try { await advancePhase(projectId, 3); } catch {}
-}
-console.log(`  ${tag.phase} ${neon.dim('Phase 2 complete')}`);
 console.log();
 
 // ── Create build directory ─────────────────────────────
