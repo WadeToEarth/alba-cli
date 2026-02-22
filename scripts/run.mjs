@@ -3,6 +3,7 @@ import { neon, tag } from '../lib/colors.mjs';
 import { checkHealth, listProjects } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING, AGENT_MESSAGES } from '../lib/config.mjs';
+import { isAuthenticated, loadCredentials } from '../lib/auth.mjs';
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -125,6 +126,20 @@ async function agentLoop(online) {
 }
 
 // ── Main ─────────────────────────────────────────────────
+
+if (!isAuthenticated()) {
+  printLogo();
+  console.log(`  ${tag.error} ${neon.red('Not authenticated.')}`);
+  console.log(`  ${neon.dim('  Run')} ${neon.cyan('/alba:login')} ${neon.dim('to authenticate first.')}`);
+  console.log();
+  process.exit(1);
+}
+
+const creds = loadCredentials();
+if (creds?.user?.email) {
+  console.log(`  ${neon.dim('Authenticated as:')} ${neon.cyan(creds.user.email)}`);
+  console.log();
+}
 
 const online = await bootSequence();
 await agentLoop(online);
