@@ -37,6 +37,23 @@ function validatePhase1() {
 }
 
 function validatePhase2() {
+  const designPath = join(projectDir, 'DESIGN.md');
+  if (!existsSync(designPath)) {
+    return 'DESIGN.md not found in project directory';
+  }
+  const content = readFileSync(designPath, 'utf-8');
+  const requiredSections = ['Component', 'Layout', 'State', 'Edge'];
+  const labels = ['Component spec', 'UI/UX Layout', 'State management', 'Edge cases'];
+  const missing = requiredSections
+    .map((s, i) => (!content.match(new RegExp(`^#{1,3}\\s.*${s}`, 'mi')) ? labels[i] : null))
+    .filter(Boolean);
+  if (missing.length > 0) {
+    return `DESIGN.md missing sections: ${missing.join(', ')}`;
+  }
+  return null;
+}
+
+function validatePhase3() {
   const pkgPath = join(projectDir, 'package.json');
   if (!existsSync(pkgPath)) {
     return 'package.json not found — project not scaffolded';
@@ -49,7 +66,7 @@ function validatePhase2() {
   return null;
 }
 
-function validatePhase3() {
+function validatePhase4() {
   const bugPath = join(projectDir, 'BUG_REPORT.md');
   if (!existsSync(bugPath)) {
     return 'BUG_REPORT.md not found in project directory';
@@ -66,7 +83,7 @@ function validatePhase3() {
   return null;
 }
 
-function validatePhase4() {
+function validatePhase5() {
   const pkgPath = join(projectDir, 'package.json');
   if (!existsSync(pkgPath)) {
     return 'package.json not found';
@@ -79,7 +96,7 @@ function validatePhase4() {
   return null;
 }
 
-function validatePhase5() {
+function validatePhase6() {
   const previewPath = join(projectDir, 'preview.html');
   if (!existsSync(previewPath)) {
     return 'preview.html not found in project directory';
@@ -97,6 +114,7 @@ const validators = {
   3: validatePhase3,
   4: validatePhase4,
   5: validatePhase5,
+  6: validatePhase6,
 };
 
 // ── Run validation ──────────────────────────────────────
@@ -156,5 +174,5 @@ console.log(`  ${tag.phase} ${neon.dim(`Phase ${phaseNumber} complete`)}`);
 console.log();
 
 // Structured output for SKILL.md to parse
-console.log(`ALBA_CHECKPOINT_PHASE=${phaseNumber}`);
-console.log(`ALBA_CHECKPOINT_STATUS=PASSED`);
+process.stderr.write(`ALBA_CHECKPOINT_PHASE=${phaseNumber}\n`);
+process.stderr.write(`ALBA_CHECKPOINT_STATUS=PASSED\n`);
