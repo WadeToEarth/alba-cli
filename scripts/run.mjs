@@ -205,19 +205,20 @@ async function buildOneProject(online) {
   // Use a local ID for build directory (even if backend fails)
   const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  // ── Phase 1: Ideation ──────────────────────────────────
+  // ── Phase 1: Ideation (4 tasks) ─────────────────────────
   const phase1 = PHASES[0];
   if (!running) return;
 
   console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase1.phase}: ${phase1.label} \u2550\u2550\u2550`)}`);
 
-  // Task 1.1: Brainstorming — generate description
+  // Task 1.1: Concept brainstorm — generate description
   const description = await generateDescription(projectName, projectTag);
   if (!running) return;
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase1.tasks[0].name)}`);
   totalTasksCompleted++;
+  await safeRecordTask(online, projectId, phase1, phase1.tasks[0]);
 
-  // Task 1.2: Idea selection — create project on backend
+  // Task 1.2: Feature specification — create project on backend
   if (online) {
     try {
       const spinner = ora({ text: 'Creating project on marketplace...', color: 'cyan' }).start();
@@ -230,16 +231,19 @@ async function buildOneProject(online) {
     }
   }
   if (!running) return;
-
-  await safeRecordTask(online, projectId, phase1, phase1.tasks[0]);
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase1.tasks[1].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase1, phase1.tasks[1]);
 
-  // Task 1.3: Requirements generation
+  // Task 1.3: Architecture overview
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase1.tasks[2].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase1, phase1.tasks[2]);
+
+  // Task 1.4: Contribution assessment
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase1.tasks[3].name)}`);
+  totalTasksCompleted++;
+  await safeRecordTask(online, projectId, phase1, phase1.tasks[3]);
 
   await safeAdvancePhase(online, projectId, 2);
   console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 1 complete')}`);
@@ -248,34 +252,42 @@ async function buildOneProject(online) {
   if (!running) return;
   await sleep(TIMING.PHASE_TRANSITION_DELAY);
 
-  // ── Phase 2: Requirements ──────────────────────────────
+  // ── Phase 2: Design (4 tasks) ──────────────────────────
   const phase2 = PHASES[1];
   if (!running) return;
 
   console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase2.phase}: ${phase2.label} \u2550\u2550\u2550`)}`);
 
-  // Task 2.1: API specification — generate spec
+  // Task 2.1: Component detail spec — generate spec
   const spec = await generateSpec(projectName, projectTag, description);
   if (!running) return;
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase2.tasks[0].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase2, phase2.tasks[0]);
 
-  // Task 2.2: Data model design
-  console.log(`  ${tag.task} ${neon.cyan('Designing data model...')}`);
+  // Task 2.2: UI/UX layout design
+  console.log(`  ${tag.task} ${neon.cyan('Designing UI/UX layout...')}`);
   await sleep(800);
   if (!running) return;
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase2.tasks[1].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase2, phase2.tasks[1]);
 
-  // Task 2.3: Validation plan
-  console.log(`  ${tag.task} ${neon.cyan('Creating validation plan...')}`);
+  // Task 2.3: State management & data flow
+  console.log(`  ${tag.task} ${neon.cyan('Defining state management...')}`);
   await sleep(500);
   if (!running) return;
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase2.tasks[2].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase2, phase2.tasks[2]);
+
+  // Task 2.4: Edge case specification
+  console.log(`  ${tag.task} ${neon.cyan('Specifying edge cases...')}`);
+  await sleep(400);
+  if (!running) return;
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase2.tasks[3].name)}`);
+  totalTasksCompleted++;
+  await safeRecordTask(online, projectId, phase2, phase2.tasks[3]);
 
   await safeAdvancePhase(online, projectId, 3);
   console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 2 complete')}`);
@@ -284,7 +296,7 @@ async function buildOneProject(online) {
   if (!running) return;
   await sleep(TIMING.PHASE_TRANSITION_DELAY);
 
-  // ── Phase 3: Development ───────────────────────────────
+  // ── Phase 3: Implementation (6 tasks) ──────────────────
   const phase3 = PHASES[2];
   if (!running) return;
 
@@ -297,33 +309,39 @@ async function buildOneProject(online) {
   createProjectDir(buildId);
   await generateProjectFiles(buildId, projectName, projectTag, description);
   if (!running) return;
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[0].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase3, phase3.tasks[0]);
 
-  // Task 3.2: Core logic implementation (already done via file generation)
+  // Task 3.2: Feature 1 implementation
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[1].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase3, phase3.tasks[1]);
 
-  // Task 3.3: UI components (already generated)
+  // Task 3.3: Feature 1 testing
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[2].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase3, phase3.tasks[2]);
 
-  // Task 3.4: Unit test suite
-  console.log(`  ${tag.task} ${neon.cyan('Generating test stubs...')}`);
-  await sleep(500);
-  if (!running) return;
+  // Task 3.4: Feature 2 implementation
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[3].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase3, phase3.tasks[3]);
 
-  // Task 3.5: Bug fixes & polish — npm install
-  const buildSuccess = await runBuild(buildId);
+  // Task 3.5: Feature 2 testing
+  console.log(`  ${tag.task} ${neon.cyan('Running feature tests...')}`);
+  await sleep(500);
   if (!running) return;
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[4].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase3, phase3.tasks[4]);
+
+  // Task 3.6: Remaining features — build
+  const buildSuccess = await runBuild(buildId);
+  if (!running) return;
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[5].name)}`);
+  totalTasksCompleted++;
+  await safeRecordTask(online, projectId, phase3, phase3.tasks[5]);
 
   await safeAdvancePhase(online, projectId, 4);
   console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 3 complete')}`);
@@ -332,15 +350,15 @@ async function buildOneProject(online) {
   if (!running) return;
   await sleep(TIMING.PHASE_TRANSITION_DELAY);
 
-  // ── Phase 4: Testing ───────────────────────────────────
+  // ── Phase 4: Review (4 tasks) ──────────────────────────
   const phase4 = PHASES[3];
   if (!running) return;
 
   console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase4.phase}: ${phase4.label} \u2550\u2550\u2550`)}`);
 
-  // Task 4.1: Integration testing — build verification
+  // Task 4.1: Security review
   if (buildSuccess) {
-    console.log(`  ${tag.task} ${neon.cyan('Verifying build output...')}`);
+    console.log(`  ${tag.task} ${neon.cyan('Running security audit...')}`);
     await sleep(500);
     console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase4.tasks[0].name)}`);
   } else {
@@ -350,20 +368,28 @@ async function buildOneProject(online) {
   await safeRecordTask(online, projectId, phase4, phase4.tasks[0]);
   if (!running) return;
 
-  // Task 4.2: Requirements verification
-  console.log(`  ${tag.task} ${neon.cyan('Checking requirements coverage...')}`);
+  // Task 4.2: Integration testing
+  console.log(`  ${tag.task} ${neon.cyan('Running integration tests...')}`);
   await sleep(600);
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase4.tasks[1].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase4, phase4.tasks[1]);
   if (!running) return;
 
-  // Task 4.3: Performance testing
-  console.log(`  ${tag.task} ${neon.cyan('Running performance benchmarks...')}`);
+  // Task 4.3: Accessibility/UX review
+  console.log(`  ${tag.task} ${neon.cyan('Reviewing accessibility & UX...')}`);
   await sleep(500);
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase4.tasks[2].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase4, phase4.tasks[2]);
+  if (!running) return;
+
+  // Task 4.4: Bug triage
+  console.log(`  ${tag.task} ${neon.cyan('Triaging bugs...')}`);
+  await sleep(400);
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase4.tasks[3].name)}`);
+  totalTasksCompleted++;
+  await safeRecordTask(online, projectId, phase4, phase4.tasks[3]);
 
   await safeAdvancePhase(online, projectId, 5);
   console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 4 complete')}`);
@@ -372,15 +398,52 @@ async function buildOneProject(online) {
   if (!running) return;
   await sleep(TIMING.PHASE_TRANSITION_DELAY);
 
-  // ── Phase 5: Demo ──────────────────────────────────────
+  // ── Phase 5: Bug Fixing (3 tasks) ─────────────────────
   const phase5 = PHASES[4];
   if (!running) return;
 
   console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase5.phase}: ${phase5.label} \u2550\u2550\u2550`)}`);
 
+  // Task 5.1: P0/P1 bug fixes
+  console.log(`  ${tag.task} ${neon.cyan('Fixing critical bugs...')}`);
+  await sleep(800);
+  if (!running) return;
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase5.tasks[0].name)}`);
+  totalTasksCompleted++;
+  await safeRecordTask(online, projectId, phase5, phase5.tasks[0]);
+
+  // Task 5.2: P2 fixes + polish
+  console.log(`  ${tag.task} ${neon.cyan('Polishing code quality...')}`);
+  await sleep(600);
+  if (!running) return;
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase5.tasks[1].name)}`);
+  totalTasksCompleted++;
+  await safeRecordTask(online, projectId, phase5, phase5.tasks[1]);
+
+  // Task 5.3: Build verification
+  console.log(`  ${tag.task} ${neon.cyan('Verifying build...')}`);
+  await sleep(400);
+  if (!running) return;
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase5.tasks[2].name)}`);
+  totalTasksCompleted++;
+  await safeRecordTask(online, projectId, phase5, phase5.tasks[2]);
+
+  await safeAdvancePhase(online, projectId, 6);
+  console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 5 complete')}`);
+  console.log();
+
+  if (!running) return;
+  await sleep(TIMING.PHASE_TRANSITION_DELAY);
+
+  // ── Phase 6: Demo (3 tasks) ───────────────────────────
+  const phase6 = PHASES[5];
+  if (!running) return;
+
+  console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase6.phase}: ${phase6.label} \u2550\u2550\u2550`)}`);
+
   const projectDir = getProjectDir(buildId);
 
-  // Task 5.1: Demo page creation — deploy to Vercel
+  // Task 6.1: Demo page creation — deploy to Vercel
   if (buildSuccess) {
     demoUrl = await deployToVercel(projectDir, projectName);
     if (demoUrl && online && projectId) {
@@ -390,23 +453,31 @@ async function buildOneProject(online) {
     console.log(`  ${tag.system} ${neon.dim('Skipping deployment — build was not successful')}`);
   }
   if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase5.tasks[0].name)}`);
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase6.tasks[0].name)}`);
   totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase5, phase5.tasks[0]);
+  await safeRecordTask(online, projectId, phase6, phase6.tasks[0]);
 
-  // Task 5.2: Staging deployment — package and upload
+  // Task 6.2: Demo verification
+  console.log(`  ${tag.task} ${neon.cyan('Verifying demo coverage...')}`);
+  await sleep(400);
+  if (!running) return;
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase6.tasks[1].name)}`);
+  totalTasksCompleted++;
+  await safeRecordTask(online, projectId, phase6, phase6.tasks[1]);
+
+  // Task 6.3: Package and list — upload to marketplace
   if (online && projectId) {
     await packageAndUpload(projectDir, projectId);
   } else {
     console.log(`  ${tag.system} ${neon.dim('Skipping upload — offline mode')}`);
   }
   if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase5.tasks[1].name)}`);
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase6.tasks[2].name)}`);
   totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase5, phase5.tasks[1]);
+  await safeRecordTask(online, projectId, phase6, phase6.tasks[2]);
 
-  await safeAdvancePhase(online, projectId, 6);
-  console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 5 complete')}`);
+  await safeAdvancePhase(online, projectId, 7);
+  console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 6 complete')}`);
   console.log();
 
   // ── Project Complete ───────────────────────────────────

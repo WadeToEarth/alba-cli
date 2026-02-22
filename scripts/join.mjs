@@ -2,9 +2,10 @@ import http from 'http';
 import ora from 'ora';
 import { join } from 'path';
 import { homedir } from 'os';
-import { mkdirSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
+import { execSync } from 'child_process';
 import { neon, tag } from '../lib/colors.mjs';
-import { checkHealth, listProjects, joinProject } from '../lib/api.mjs';
+import { checkHealth, listProjects, joinProject, downloadProjectZip } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
 import { isAuthenticated, loadCredentials, saveCredentials } from '../lib/auth.mjs';
@@ -224,6 +225,24 @@ console.log();
 
 const projectDir = join(homedir(), '.alba', 'builds', selectedProject.id);
 mkdirSync(projectDir, { recursive: true });
+
+// ── Download existing source code ────────────────────────
+
+const dlSpinner = ora({ text: 'Downloading project source code...', color: 'cyan' }).start();
+try {
+  const zipBuffer = await downloadProjectZip(selectedProject.id);
+  if (zipBuffer) {
+    const zipPath = join(projectDir, '..', `${selectedProject.id}-download.zip`);
+    writeFileSync(zipPath, zipBuffer);
+    execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
+    dlSpinner.succeed(neon.green(`Source code extracted (${(zipBuffer.length / 1024).toFixed(0)} KB)`));
+  } else {
+    dlSpinner.info(neon.dim('No source code uploaded yet — starting from scratch'));
+  }
+} catch (err) {
+  dlSpinner.warn(neon.yellow(`Download failed: ${err.message || 'unknown'} — starting from scratch`));
+}
+console.log();
 
 console.log(`  ${tag.system} ${neon.green('Join complete. Starting phase work...')}`);
 console.log();
