@@ -1,10 +1,11 @@
 import http from 'http';
 import ora from 'ora';
-import { mkdirSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { execSync } from 'child_process';
 import { neon, tag } from '../lib/colors.mjs';
-import { checkHealth, createProject } from '../lib/api.mjs';
+import { checkHealth, createProject, listProjects, joinProject, getArtifacts, downloadProjectZip } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
 import { randomProjectName, randomTag } from '../lib/project-names.mjs';
@@ -12,6 +13,8 @@ import { isAuthenticated, loadCredentials, saveCredentials } from '../lib/auth.m
 
 const FRONTEND_URL = 'https://alba-run.vercel.app';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const PHASE_NAMES = ['', 'Ideation', 'Design', 'Implementation', 'Review', 'Bug Fix', 'Demo'];
 
 // ── Auto Login ───────────────────────────────────────────
 
@@ -130,6 +133,102 @@ async function bootSequence() {
   }
 }
 
+// ── Try Auto-Join ────────────────────────────────────────
+
+async function tryAutoJoin() {
+  const spinner = ora({ text: 'Looking for building projects to join...', color: 'cyan' }).start();
+
+  let projects;
+  try {
+    const all = await listProjects();
+    projects = all.filter((p) => p.status === 'building');
+  } catch (err) {
+    spinner.fail(neon.yellow(`Failed to list projects: ${err.message}`));
+    return null;
+  }
+
+  if (projects.length === 0) {
+    spinner.info(neon.dim('No building projects available — creating new project'));
+    return null;
+  }
+
+  spinner.succeed(neon.green(`Found ${projects.length} building project(s)`));
+
+  // Try joining each project
+  for (const project of projects) {
+    const phaseName = PHASE_NAMES[project.currentPhase] || 'Unknown';
+    const joinSpinner = ora({
+      text: `Joining "${project.name}" (Phase ${project.currentPhase}: ${phaseName})...`,
+      color: 'cyan',
+    }).start();
+
+    try {
+      const joinResult = await joinProject(project.id);
+      joinSpinner.succeed(neon.green(`Joined "${project.name}" — Phase ${joinResult.currentPhase}: ${joinResult.phaseName}`));
+
+      // Create local build directory
+      const projectDir = join(homedir(), '.alba', 'builds', project.id);
+      mkdirSync(projectDir, { recursive: true });
+
+      const currentPhase = joinResult.currentPhase;
+
+      // Download artifacts
+      const dlSpinner = ora({ text: 'Downloading project artifacts...', color: 'cyan' }).start();
+      try {
+        const artifacts = await getArtifacts(project.id);
+        let artifactCount = 0;
+        for (const [filename, content] of Object.entries(artifacts)) {
+          writeFileSync(join(projectDir, filename), content, 'utf-8');
+          artifactCount++;
+        }
+        if (artifactCount > 0) {
+          dlSpinner.succeed(neon.green(`Downloaded ${artifactCount} artifact(s): ${Object.keys(artifacts).join(', ')}`));
+        } else {
+          dlSpinner.info(neon.dim('No artifacts uploaded yet'));
+        }
+
+        // Phase 4+: also download full source code
+        if (currentPhase >= 4) {
+          const srcSpinner = ora({ text: 'Downloading source code...', color: 'cyan' }).start();
+          try {
+            const zipBuffer = await downloadProjectZip(project.id);
+            if (zipBuffer) {
+              const zipPath = join(projectDir, '..', `${project.id}-download.zip`);
+              writeFileSync(zipPath, zipBuffer);
+              execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
+              srcSpinner.succeed(neon.green(`Source code extracted (${(zipBuffer.length / 1024).toFixed(0)} KB)`));
+            } else {
+              srcSpinner.info(neon.dim('No source code uploaded yet'));
+            }
+          } catch (err) {
+            srcSpinner.warn(neon.yellow(`Source download failed: ${err.message || 'unknown'}`));
+          }
+        }
+      } catch (err) {
+        dlSpinner.warn(neon.yellow(`Artifact download failed: ${err.message || 'unknown'}`));
+      }
+
+      return {
+        projectId: project.id,
+        projectName: project.name,
+        projectTag: project.tag || '',
+        projectDir,
+        currentPhase,
+        phaseName: joinResult.phaseName,
+      };
+    } catch (err) {
+      if (err.message && err.message.includes('409')) {
+        joinSpinner.warn(neon.dim(`Already contributed to "${project.name}" — skipping`));
+      } else {
+        joinSpinner.warn(neon.yellow(`Failed to join "${project.name}": ${err.message}`));
+      }
+    }
+  }
+
+  console.log(`  ${neon.dim('All building projects skipped — creating new project')}`);
+  return null;
+}
+
 // ── Main ─────────────────────────────────────────────────
 
 printLogo();
@@ -153,34 +252,49 @@ if (creds?.user?.email) {
 
 const online = await bootSequence();
 
-// Pick project
-const projectName = randomProjectName();
-const projectTag = randomTag();
-let projectId = null;
+// ── Try auto-join first, then fall back to new project ───
 
-console.log(neon.green(`  ═══ New Project: ${projectName} ═══`));
-console.log(`  ${neon.dim('Tag:')} ${neon.cyan(projectTag)}`);
-console.log();
-
-// ── Create project on backend ────────────────────────────
+let projectName, projectTag, projectId, projectDir, currentPhase, phaseName;
 
 if (online) {
-  try {
-    const spinner = ora({ text: 'Creating project on marketplace...', color: 'cyan' }).start();
-    const project = await createProject({ name: projectName, tag: projectTag });
-    projectId = project.id;
-    spinner.succeed(neon.green('Project registered on marketplace'));
-  } catch (err) {
-    console.log(`  ${tag.error} ${neon.red('Failed to create project:')} ${err.message}`);
+  const joined = await tryAutoJoin();
+  if (joined) {
+    projectId = joined.projectId;
+    projectName = joined.projectName;
+    projectTag = joined.projectTag;
+    projectDir = joined.projectDir;
+    currentPhase = joined.currentPhase;
+    phaseName = joined.phaseName;
   }
 }
-console.log();
 
-// ── Create build directory ─────────────────────────────
+// Fall back to creating a new project
+if (!projectId) {
+  projectName = randomProjectName();
+  projectTag = randomTag();
+  currentPhase = 1;
+  phaseName = 'Ideation';
 
-const buildId = projectId || `local-${Date.now()}`;
-const projectDir = join(homedir(), '.alba', 'builds', buildId);
-mkdirSync(projectDir, { recursive: true });
+  console.log(neon.green(`  ═══ New Project: ${projectName} ═══`));
+  console.log(`  ${neon.dim('Tag:')} ${neon.cyan(projectTag)}`);
+  console.log();
+
+  if (online) {
+    try {
+      const spinner = ora({ text: 'Creating project on marketplace...', color: 'cyan' }).start();
+      const project = await createProject({ name: projectName, tag: projectTag });
+      projectId = project.id;
+      spinner.succeed(neon.green('Project registered on marketplace'));
+    } catch (err) {
+      console.log(`  ${tag.error} ${neon.red('Failed to create project:')} ${err.message}`);
+    }
+  }
+  console.log();
+
+  const buildId = projectId || `local-${Date.now()}`;
+  projectDir = join(homedir(), '.alba', 'builds', buildId);
+  mkdirSync(projectDir, { recursive: true });
+}
 
 // ── Output for Claude Code ─────────────────────────────
 
@@ -191,12 +305,14 @@ console.log();
 // captured by Claude Code but not shown prominently to the user.
 const vars = [
   'ALBA_SETUP_RESULT_START',
-  `ALBA_PROJECT_ID=${buildId}`,
+  `ALBA_PROJECT_ID=${projectId || projectDir.split('/').pop()}`,
   `ALBA_PROJECT_NAME=${projectName}`,
   `ALBA_PROJECT_TAG=${projectTag}`,
   `ALBA_PROJECT_DIR=${projectDir}`,
   `ALBA_ONLINE=${online}`,
   `ALBA_BACKEND_ID=${projectId || ''}`,
+  `ALBA_CURRENT_PHASE=${currentPhase}`,
+  `ALBA_PHASE_NAME=${phaseName}`,
   'ALBA_SETUP_RESULT_END',
 ];
 process.stderr.write(vars.join('\n') + '\n');

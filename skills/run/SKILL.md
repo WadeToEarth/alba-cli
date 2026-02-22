@@ -8,6 +8,8 @@ allowed-tools: Bash, Write, Read, Glob, WebSearch, WebFetch
 Build a marketplace-quality micro-MVP through a structured, role-based pipeline.
 Each phase has a dedicated role. You must **adopt that role fully** — forget prior assumptions and approach each phase with fresh eyes.
 
+**This skill runs in a loop.** After completing a project (or a single phase for joined projects), it loops back to pick up the next project.
+
 ---
 
 ## Step 1: Setup
@@ -18,8 +20,26 @@ cd ${CLAUDE_PLUGIN_ROOT} && npm install --silent 2>/dev/null && node scripts/set
 
 Parse the stderr output between `ALBA_SETUP_RESULT_START` and `ALBA_SETUP_RESULT_END` to extract:
 - `ALBA_PROJECT_DIR`, `ALBA_PROJECT_NAME`, `ALBA_PROJECT_TAG`, `ALBA_BACKEND_ID`, `ALBA_ONLINE`
+- `ALBA_CURRENT_PHASE`, `ALBA_PHASE_NAME`
 
 All subsequent work happens inside `ALBA_PROJECT_DIR`.
+
+### Phase Router
+
+After parsing, check `ALBA_CURRENT_PHASE` to determine where to start:
+
+| ALBA_CURRENT_PHASE | Jump to | Notes |
+|---|---|---|
+| 1 | Step 2 (Ideation) | New project — do ALL phases (2→3→4→5→6→7) |
+| 2 | Step 3 (Design) | Joined project — do this phase only, then Step 8 |
+| 3 | Step 4 (Implementation) | Joined project — do this phase only, then Step 8 |
+| 4 | Step 5 (Review) | Joined project — do this phase only, then Step 8 |
+| 5 | Step 6 (Bug Fix) | Joined project — do this phase only, then Step 8 |
+| 6 | Step 7 (Demo) | Joined project — do this phase only, then Step 8 |
+
+**For joined projects (ALBA_CURRENT_PHASE >= 2):** Execute ONLY the current phase, then go directly to Step 8 (Finalize), then Step 9 (Loop).
+
+**For new projects (ALBA_CURRENT_PHASE = 1):** Execute all phases in order (Steps 2-7), then Step 8, then Step 9. If any `advancePhase` call in a checkpoint fails with a 409/conflict, stop and go to Step 8 → Step 9.
 
 ---
 
@@ -95,6 +115,8 @@ Then run:
 cd ${CLAUDE_PLUGIN_ROOT} && node scripts/checkpoint.mjs 2 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
 ```
 
+**If ALBA_CURRENT_PHASE was 2 (joined project), go directly to Step 8.**
+
 ---
 
 ## Step 4: Implementation — Developer + QA
@@ -126,6 +148,8 @@ Then run:
 ```bash
 cd ${CLAUDE_PLUGIN_ROOT} && node scripts/checkpoint.mjs 3 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
 ```
+
+**If ALBA_CURRENT_PHASE was 3 (joined project), go directly to Step 8.**
 
 ---
 
@@ -163,6 +187,8 @@ Then run:
 cd ${CLAUDE_PLUGIN_ROOT} && node scripts/checkpoint.mjs 4 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
 ```
 
+**If ALBA_CURRENT_PHASE was 4 (joined project), go directly to Step 8.**
+
 ---
 
 ## Step 6: Bug Fixing — Debugger
@@ -188,6 +214,8 @@ Then run:
 ```bash
 cd ${CLAUDE_PLUGIN_ROOT} && node scripts/checkpoint.mjs 5 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
 ```
+
+**If ALBA_CURRENT_PHASE was 5 (joined project), go directly to Step 8.**
 
 ---
 
@@ -223,6 +251,14 @@ cd ${CLAUDE_PLUGIN_ROOT} && node scripts/finalize.mjs "ALBA_PROJECT_DIR" "ALBA_P
 
 ---
 
+## Step 9: Loop
+
+Go back to **Step 1** to pick up the next project. The setup script will automatically find another building project to join, or create a new one if none are available.
+
+Continue looping until the user stops you (Ctrl+C or explicit instruction).
+
+---
+
 ## Rules
 
 - **Do NOT skip phases.** Each checkpoint validates artifacts before allowing progression.
@@ -230,3 +266,5 @@ cd ${CLAUDE_PLUGIN_ROOT} && node scripts/finalize.mjs "ALBA_PROJECT_DIR" "ALBA_P
 - **Each phase = fresh perspective.** The reviewer must NOT assume the developer's code is correct. The debugger must NOT assume the reviewer was wrong.
 - **Replace placeholder values** with actual values from Step 1.
 - **Do NOT add commentary before or after commands.** Just execute the steps.
+- **Joined projects do ONE phase only.** After completing the assigned phase, finalize and loop.
+- **New projects do ALL phases.** Unless a checkpoint fails with a conflict — then finalize and loop.

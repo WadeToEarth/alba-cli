@@ -1,7 +1,11 @@
 import http from 'http';
 import ora from 'ora';
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
+import { execSync } from 'child_process';
 import { neon, tag } from '../lib/colors.mjs';
-import { checkHealth, createProject, recordTask, advancePhase } from '../lib/api.mjs';
+import { checkHealth, createProject, recordTask, advancePhase, listProjects, joinProject, getArtifacts, downloadProjectZip } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
 import { PHASES, getTaskReward } from '../lib/phases.mjs';
@@ -12,6 +16,7 @@ import { deployToVercel } from '../lib/deployer.mjs';
 import { packageAndUpload, updateDemoUrl } from '../lib/packager.mjs';
 
 const FRONTEND_URL = 'https://alba-run.vercel.app';
+const PHASE_NAMES = ['', 'Ideation', 'Design', 'Implementation', 'Review', 'Bug Fix', 'Demo'];
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -176,10 +181,17 @@ async function safeAdvancePhase(online, projectId, nextPhase) {
   if (online && projectId) {
     try {
       await advancePhase(projectId, nextPhase);
+      return true;
     } catch (err) {
+      const is409 = err.message && err.message.includes('409');
+      if (is409) {
+        console.log(`  ${neon.dim(timestamp())} ${tag.error} ${neon.yellow('Phase advance conflict (same contributor) — stopping')}`);
+        return false;
+      }
       console.log(`  ${neon.dim(timestamp())} ${tag.error} ${neon.yellow('Failed to advance phase:')} ${neon.dim(err.message || 'unknown error')}`);
     }
   }
+  return true;
 }
 
 // ── Project Build Loop ───────────────────────────────────
@@ -192,33 +204,241 @@ process.on('SIGINT', () => {
   running = false;
 });
 
-async function buildOneProject(online) {
+// ── Try Join and Do One Phase ────────────────────────────
+
+async function tryJoinAndDoPhase(online) {
+  const spinner = ora({ text: 'Looking for building projects to join...', color: 'cyan' }).start();
+
+  let projects;
+  try {
+    const all = await listProjects();
+    projects = all.filter((p) => p.status === 'building');
+  } catch (err) {
+    spinner.fail(neon.yellow(`Failed to list projects: ${err.message}`));
+    return false;
+  }
+
+  if (projects.length === 0) {
+    spinner.info(neon.dim('No building projects available'));
+    return false;
+  }
+
+  spinner.succeed(neon.green(`Found ${projects.length} building project(s)`));
+
+  for (const project of projects) {
+    const phaseName = PHASE_NAMES[project.currentPhase] || 'Unknown';
+    const joinSpinner = ora({
+      text: `Joining "${project.name}" (Phase ${project.currentPhase}: ${phaseName})...`,
+      color: 'cyan',
+    }).start();
+
+    let joinResult;
+    try {
+      joinResult = await joinProject(project.id);
+      joinSpinner.succeed(neon.green(`Joined "${project.name}" — Phase ${joinResult.currentPhase}: ${joinResult.phaseName}`));
+    } catch (err) {
+      if (err.message && err.message.includes('409')) {
+        joinSpinner.warn(neon.dim(`Already contributed to "${project.name}" — skipping`));
+      } else {
+        joinSpinner.warn(neon.yellow(`Failed to join "${project.name}": ${err.message}`));
+      }
+      continue;
+    }
+
+    // Successfully joined — set up local directory
+    const projectDir = join(homedir(), '.alba', 'builds', project.id);
+    mkdirSync(projectDir, { recursive: true });
+
+    const currentPhase = joinResult.currentPhase;
+
+    // Download artifacts
+    try {
+      const artifacts = await getArtifacts(project.id);
+      for (const [filename, content] of Object.entries(artifacts)) {
+        writeFileSync(join(projectDir, filename), content, 'utf-8');
+      }
+    } catch (err) {
+      console.log(`  ${neon.dim(timestamp())} ${tag.error} ${neon.yellow('Artifact download failed:')} ${neon.dim(err.message)}`);
+    }
+
+    // Phase 4+: download source code
+    if (currentPhase >= 4) {
+      try {
+        const zipBuffer = await downloadProjectZip(project.id);
+        if (zipBuffer) {
+          const zipPath = join(projectDir, '..', `${project.id}-download.zip`);
+          writeFileSync(zipPath, zipBuffer);
+          execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
+          console.log(`  ${neon.dim(timestamp())} ${tag.system} ${neon.green('Source code downloaded')}`);
+        }
+      } catch (err) {
+        console.log(`  ${neon.dim(timestamp())} ${tag.error} ${neon.yellow('Source download failed:')} ${neon.dim(err.message)}`);
+      }
+    }
+
+    // Execute the current phase
+    console.log();
+    console.log(neon.green(`  \u2550\u2550\u2550 Joined: ${project.name} (Phase ${currentPhase}: ${joinResult.phaseName}) \u2550\u2550\u2550`));
+    console.log();
+
+    await executePhase(online, project.id, project.name, projectDir, currentPhase);
+
+    totalProjects++;
+    console.log();
+    console.log(neon.green(`  \u2550\u2550\u2550 Phase ${currentPhase} complete for "${project.name}" \u2550\u2550\u2550`));
+    console.log(`  ${neon.dim(`${totalTasksCompleted} total tasks completed this session`)}`);
+    console.log();
+
+    return true;
+  }
+
+  console.log(`  ${neon.dim('All building projects skipped')}`);
+  return false;
+}
+
+// ── Execute a Single Phase ───────────────────────────────
+
+async function executePhase(online, projectId, projectName, projectDir, phase) {
+  const phaseData = PHASES[phase - 1];
+  if (!phaseData) return;
+
+  console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phaseData.phase}: ${phaseData.label} \u2550\u2550\u2550`)}`);
+
+  const buildId = projectId || `local-${Date.now()}`;
+
+  switch (phase) {
+    case 2: {
+      // Design phase
+      const spec = await generateSpec(projectName, '', '');
+      if (!running) return;
+      for (const task of phaseData.tasks) {
+        console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(task.name)}`);
+        totalTasksCompleted++;
+        await safeRecordTask(online, projectId, phaseData, task);
+        await sleep(400);
+        if (!running) return;
+      }
+      await safeAdvancePhase(online, projectId, 3);
+      break;
+    }
+
+    case 3: {
+      // Implementation phase
+      createProjectDir(buildId);
+      await generateProjectFiles(buildId, projectName, '', '');
+      if (!running) return;
+
+      // Tasks 3.1-3.5
+      for (let i = 0; i < phaseData.tasks.length - 1; i++) {
+        console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phaseData.tasks[i].name)}`);
+        totalTasksCompleted++;
+        await safeRecordTask(online, projectId, phaseData, phaseData.tasks[i]);
+        if (!running) return;
+      }
+
+      // Task 3.6: Build
+      await runBuild(buildId);
+      if (!running) return;
+      const lastTask = phaseData.tasks[phaseData.tasks.length - 1];
+      console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(lastTask.name)}`);
+      totalTasksCompleted++;
+      await safeRecordTask(online, projectId, phaseData, lastTask);
+
+      await safeAdvancePhase(online, projectId, 4);
+      break;
+    }
+
+    case 4: {
+      // Review phase
+      for (const task of phaseData.tasks) {
+        console.log(`  ${tag.task} ${neon.cyan(`${task.name}...`)}`);
+        await sleep(500);
+        if (!running) return;
+        console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(task.name)}`);
+        totalTasksCompleted++;
+        await safeRecordTask(online, projectId, phaseData, task);
+      }
+      await safeAdvancePhase(online, projectId, 5);
+      break;
+    }
+
+    case 5: {
+      // Bug Fix phase
+      for (const task of phaseData.tasks) {
+        console.log(`  ${tag.task} ${neon.cyan(`${task.name}...`)}`);
+        await sleep(600);
+        if (!running) return;
+        console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(task.name)}`);
+        totalTasksCompleted++;
+        await safeRecordTask(online, projectId, phaseData, task);
+      }
+      await safeAdvancePhase(online, projectId, 6);
+      break;
+    }
+
+    case 6: {
+      // Demo phase
+      const pd = getProjectDir(buildId);
+
+      // Task 6.1: Deploy
+      const demoUrl = await deployToVercel(pd, projectName);
+      if (demoUrl && online && projectId) {
+        await updateDemoUrl(projectId, demoUrl);
+      }
+      if (!running) return;
+      console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phaseData.tasks[0].name)}`);
+      totalTasksCompleted++;
+      await safeRecordTask(online, projectId, phaseData, phaseData.tasks[0]);
+
+      // Task 6.2: Demo verification
+      console.log(`  ${tag.task} ${neon.cyan('Verifying demo coverage...')}`);
+      await sleep(400);
+      if (!running) return;
+      console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phaseData.tasks[1].name)}`);
+      totalTasksCompleted++;
+      await safeRecordTask(online, projectId, phaseData, phaseData.tasks[1]);
+
+      // Task 6.3: Package and upload
+      if (online && projectId) {
+        await packageAndUpload(pd, projectId);
+      }
+      if (!running) return;
+      console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phaseData.tasks[2].name)}`);
+      totalTasksCompleted++;
+      await safeRecordTask(online, projectId, phaseData, phaseData.tasks[2]);
+
+      await safeAdvancePhase(online, projectId, 7);
+      break;
+    }
+  }
+
+  console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim(`Phase ${phase} complete`)}`);
+  console.log();
+}
+
+// ── Build New Project (Phase 1 & 2 only) ─────────────────
+
+async function buildNewProject(online) {
   const projectName = randomProjectName();
   const projectTag = randomTag();
   let projectId = null;
-  let demoUrl = null;
 
   console.log(neon.green(`  \u2550\u2550\u2550 New Project: ${projectName} \u2550\u2550\u2550`));
   console.log(`  ${neon.dim('Tag:')} ${neon.cyan(projectTag)}`);
   console.log();
 
-  // Use a local ID for build directory (even if backend fails)
   const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  // ── Phase 1: Ideation (4 tasks) ─────────────────────────
+  // ── Phase 1: Ideation ──────────────────────────────────
   const phase1 = PHASES[0];
   if (!running) return;
 
   console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase1.phase}: ${phase1.label} \u2550\u2550\u2550`)}`);
 
-  // Task 1.1: Concept brainstorm — generate description
+  // Create project on backend first so all tasks can be recorded with projectId
   const description = await generateDescription(projectName, projectTag);
   if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase1.tasks[0].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase1, phase1.tasks[0]);
 
-  // Task 1.2: Feature specification — create project on backend
   if (online) {
     try {
       const spinner = ora({ text: 'Creating project on marketplace...', color: 'cyan' }).start();
@@ -231,6 +451,13 @@ async function buildOneProject(online) {
     }
   }
   if (!running) return;
+
+  // Task 1.1: Concept brainstorm
+  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase1.tasks[0].name)}`);
+  totalTasksCompleted++;
+  await safeRecordTask(online, projectId, phase1, phase1.tasks[0]);
+
+  // Task 1.2: Feature specification
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase1.tasks[1].name)}`);
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase1, phase1.tasks[1]);
@@ -245,20 +472,20 @@ async function buildOneProject(online) {
   totalTasksCompleted++;
   await safeRecordTask(online, projectId, phase1, phase1.tasks[3]);
 
-  await safeAdvancePhase(online, projectId, 2);
+  const advanced1 = await safeAdvancePhase(online, projectId, 2);
   console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 1 complete')}`);
   console.log();
+  if (!advanced1 || !running) return;
 
-  if (!running) return;
   await sleep(TIMING.PHASE_TRANSITION_DELAY);
 
-  // ── Phase 2: Design (4 tasks) ──────────────────────────
+  // ── Phase 2: Design ────────────────────────────────────
   const phase2 = PHASES[1];
   if (!running) return;
 
   console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase2.phase}: ${phase2.label} \u2550\u2550\u2550`)}`);
 
-  // Task 2.1: Component detail spec — generate spec
+  // Task 2.1: Component detail spec
   const spec = await generateSpec(projectName, projectTag, description);
   if (!running) return;
   console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase2.tasks[0].name)}`);
@@ -293,205 +520,14 @@ async function buildOneProject(online) {
   console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 2 complete')}`);
   console.log();
 
-  if (!running) return;
-  await sleep(TIMING.PHASE_TRANSITION_DELAY);
-
-  // ── Phase 3: Implementation (6 tasks) ──────────────────
-  const phase3 = PHASES[2];
-  if (!running) return;
-
-  console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase3.phase}: ${phase3.label} \u2550\u2550\u2550`)}`);
-
-  // Use projectId if available, else localId for build dir
-  const buildId = projectId || localId;
-
-  // Task 3.1: Project scaffolding — create project files
-  createProjectDir(buildId);
-  await generateProjectFiles(buildId, projectName, projectTag, description);
-  if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[0].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase3, phase3.tasks[0]);
-
-  // Task 3.2: Feature 1 implementation
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[1].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase3, phase3.tasks[1]);
-
-  // Task 3.3: Feature 1 testing
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[2].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase3, phase3.tasks[2]);
-
-  // Task 3.4: Feature 2 implementation
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[3].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase3, phase3.tasks[3]);
-
-  // Task 3.5: Feature 2 testing
-  console.log(`  ${tag.task} ${neon.cyan('Running feature tests...')}`);
-  await sleep(500);
-  if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[4].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase3, phase3.tasks[4]);
-
-  // Task 3.6: Remaining features — build
-  const buildSuccess = await runBuild(buildId);
-  if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase3.tasks[5].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase3, phase3.tasks[5]);
-
-  await safeAdvancePhase(online, projectId, 4);
-  console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 3 complete')}`);
+  // Stop here — Phase 3+ will be picked up by other agents via join
+  totalProjects++;
+  console.log(neon.green(`  \u2550\u2550\u2550 Project "${projectName}" ready for Phase 3 (waiting for contributors) \u2550\u2550\u2550`));
+  console.log(`  ${neon.dim(`${totalTasksCompleted} total tasks completed this session`)}`);
   console.log();
-
-  if (!running) return;
-  await sleep(TIMING.PHASE_TRANSITION_DELAY);
-
-  // ── Phase 4: Review (4 tasks) ──────────────────────────
-  const phase4 = PHASES[3];
-  if (!running) return;
-
-  console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase4.phase}: ${phase4.label} \u2550\u2550\u2550`)}`);
-
-  // Task 4.1: Security review
-  if (buildSuccess) {
-    console.log(`  ${tag.task} ${neon.cyan('Running security audit...')}`);
-    await sleep(500);
-    console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase4.tasks[0].name)}`);
-  } else {
-    console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.yellow('\u26A0')} ${neon.dim(`${phase4.tasks[0].name} (build had warnings)`)}`);
-  }
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase4, phase4.tasks[0]);
-  if (!running) return;
-
-  // Task 4.2: Integration testing
-  console.log(`  ${tag.task} ${neon.cyan('Running integration tests...')}`);
-  await sleep(600);
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase4.tasks[1].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase4, phase4.tasks[1]);
-  if (!running) return;
-
-  // Task 4.3: Accessibility/UX review
-  console.log(`  ${tag.task} ${neon.cyan('Reviewing accessibility & UX...')}`);
-  await sleep(500);
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase4.tasks[2].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase4, phase4.tasks[2]);
-  if (!running) return;
-
-  // Task 4.4: Bug triage
-  console.log(`  ${tag.task} ${neon.cyan('Triaging bugs...')}`);
-  await sleep(400);
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase4.tasks[3].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase4, phase4.tasks[3]);
-
-  await safeAdvancePhase(online, projectId, 5);
-  console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 4 complete')}`);
-  console.log();
-
-  if (!running) return;
-  await sleep(TIMING.PHASE_TRANSITION_DELAY);
-
-  // ── Phase 5: Bug Fixing (3 tasks) ─────────────────────
-  const phase5 = PHASES[4];
-  if (!running) return;
-
-  console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase5.phase}: ${phase5.label} \u2550\u2550\u2550`)}`);
-
-  // Task 5.1: P0/P1 bug fixes
-  console.log(`  ${tag.task} ${neon.cyan('Fixing critical bugs...')}`);
-  await sleep(800);
-  if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase5.tasks[0].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase5, phase5.tasks[0]);
-
-  // Task 5.2: P2 fixes + polish
-  console.log(`  ${tag.task} ${neon.cyan('Polishing code quality...')}`);
-  await sleep(600);
-  if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase5.tasks[1].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase5, phase5.tasks[1]);
-
-  // Task 5.3: Build verification
-  console.log(`  ${tag.task} ${neon.cyan('Verifying build...')}`);
-  await sleep(400);
-  if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase5.tasks[2].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase5, phase5.tasks[2]);
-
-  await safeAdvancePhase(online, projectId, 6);
-  console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 5 complete')}`);
-  console.log();
-
-  if (!running) return;
-  await sleep(TIMING.PHASE_TRANSITION_DELAY);
-
-  // ── Phase 6: Demo (3 tasks) ───────────────────────────
-  const phase6 = PHASES[5];
-  if (!running) return;
-
-  console.log(`  ${tag.phase} ${neon.magenta(`\u2550\u2550\u2550 Phase ${phase6.phase}: ${phase6.label} \u2550\u2550\u2550`)}`);
-
-  const projectDir = getProjectDir(buildId);
-
-  // Task 6.1: Demo page creation — deploy to Vercel
-  if (buildSuccess) {
-    demoUrl = await deployToVercel(projectDir, projectName);
-    if (demoUrl && online && projectId) {
-      await updateDemoUrl(projectId, demoUrl);
-    }
-  } else {
-    console.log(`  ${tag.system} ${neon.dim('Skipping deployment — build was not successful')}`);
-  }
-  if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase6.tasks[0].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase6, phase6.tasks[0]);
-
-  // Task 6.2: Demo verification
-  console.log(`  ${tag.task} ${neon.cyan('Verifying demo coverage...')}`);
-  await sleep(400);
-  if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase6.tasks[1].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase6, phase6.tasks[1]);
-
-  // Task 6.3: Package and list — upload to marketplace
-  if (online && projectId) {
-    await packageAndUpload(projectDir, projectId);
-  } else {
-    console.log(`  ${tag.system} ${neon.dim('Skipping upload — offline mode')}`);
-  }
-  if (!running) return;
-  console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(phase6.tasks[2].name)}`);
-  totalTasksCompleted++;
-  await safeRecordTask(online, projectId, phase6, phase6.tasks[2]);
-
-  await safeAdvancePhase(online, projectId, 7);
-  console.log(`  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim('Phase 6 complete')}`);
-  console.log();
-
-  // ── Project Complete ───────────────────────────────────
-  if (running) {
-    totalProjects++;
-    console.log(neon.green(`  \u2550\u2550\u2550 Project "${projectName}" listed on marketplace \u2550\u2550\u2550`));
-    console.log(`  ${neon.dim(`Build directory: ${projectDir}`)}`);
-    if (demoUrl) {
-      console.log(`  ${neon.dim('Demo URL:')} ${neon.cyan(demoUrl)}`);
-    }
-    console.log(`  ${neon.dim(`${totalTasksCompleted} total tasks completed this session`)}`);
-    console.log();
-  }
 }
+
+// ── Main Loop ────────────────────────────────────────────
 
 async function mainLoop(online) {
   console.log(neon.dim('  Press Ctrl+C to stop'));
@@ -499,7 +535,15 @@ async function mainLoop(online) {
 
   while (running) {
     try {
-      await buildOneProject(online);
+      let didJoin = false;
+
+      if (online) {
+        didJoin = await tryJoinAndDoPhase(online);
+      }
+
+      if (!didJoin) {
+        await buildNewProject(online);
+      }
     } catch (err) {
       console.log(`  ${tag.error} ${neon.red('Project build failed:')} ${neon.dim(err.message || 'unknown')}`);
       console.log();
