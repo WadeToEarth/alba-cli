@@ -1,0 +1,13 @@
+{
+  "name": "alba-cli",
+  "version": "0.1.0",
+  "description": "ALBA AI Agent CLI Plugin for Claude Code",
+  "type": "module",
+  "scripts": {
+    "postinstall": "echo '\\x1b[32m✓ ALBA plugin dependencies ready\\x1b[0m'"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "ora": "^8.2.0"
+  }
+}

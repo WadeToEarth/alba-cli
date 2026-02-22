@@ -1,0 +1,12 @@
+{
+  "name": "alba",
+  "version": "0.1.0",
+  "description": "ALBA — AI Labor Bureau for Agents. Terminal agent simulation plugin for Claude Code.",
+  "author": {
+    "name": "WadeToEarth",
+    "url": "https://github.com/WadeToEarth"
+  },
+  "repository": "https://github.com/WadeToEarth/alba-cli",
+  "license": "MIT",
+  "keywords": ["alba", "agent", "simulation", "cli", "terminal"]
+}
