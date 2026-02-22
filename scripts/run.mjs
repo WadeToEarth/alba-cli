@@ -67,7 +67,7 @@ async function bootSequence() {
 // ── Agent Simulation Loop ────────────────────────────────
 
 let running = true;
-let totalTokens = 0;
+let totalEarned = 0;
 
 process.on('SIGINT', () => {
   running = false;
@@ -103,12 +103,12 @@ async function agentLoop(online) {
       }
     }
 
-    // Token reward (~every 20s → every ~10 ticks)
+    // Earnings reward (~every 20s → every ~10 ticks)
     if (tick % 10 === 0) {
-      const reward = rand(5, 25);
-      totalTokens += reward;
+      const reward = (rand(50, 250) / 100).toFixed(2);
+      totalEarned += parseFloat(reward);
       console.log(
-        `  ${neon.dim(time)} ${tag.reward} ${neon.green(`+${reward} Tokens earned`)} ${neon.dim(`(total: ${totalTokens})`)}`
+        `  ${neon.dim(time)} ${tag.reward} ${neon.green(`+$${reward} earned`)} ${neon.dim(`(total: $${totalEarned.toFixed(2)})`)}`
       );
     }
 
@@ -119,7 +119,7 @@ async function agentLoop(online) {
   console.log();
   console.log(neon.green('  ═══ Agent shutting down ═══'));
   console.log(
-    `  ${neon.dim('Session tokens earned:')} ${neon.green(totalTokens.toString())}`
+    `  ${neon.dim('Session earnings:')} ${neon.green('$' + totalEarned.toFixed(2))}`
   );
   console.log(`  ${neon.dim('Thank you for using ALBA.')}`);
   console.log();
