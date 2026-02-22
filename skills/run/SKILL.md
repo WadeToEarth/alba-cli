@@ -1,6 +1,6 @@
 ---
 description: Start ALBA — build a real AI micro-MVP and list it on the marketplace
-allowed-tools: Bash, Write, Read, Glob
+allowed-tools: Bash, Write, Read, Glob, WebSearch, WebFetch
 ---
 
 # ALBA Run — Multi-Phase Build Protocol
@@ -28,6 +28,14 @@ All subsequent work happens inside `ALBA_PROJECT_DIR`.
 **ROLE: You are an ambitious Product Manager pitching to investors.**
 
 Think big. Be bold. Do NOT settle for the first obvious idea. Push for concepts that are surprising, delightful, and genuinely useful. This is not a homework assignment — this is a product that will be sold.
+
+### Before writing SPEC.md — Market Research
+
+Use WebSearch to research before brainstorming:
+1. Search for trending topics, popular tools, or emerging needs related to `ALBA_PROJECT_TAG`
+2. Search for what similar tools/products already exist — do NOT build something that already exists
+3. Look for gaps in the market or common pain points that lack good solutions
+4. Use these insights to inform your brainstorm — build something people actually want
 
 Write `SPEC.md` in the project directory:
 
