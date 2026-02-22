@@ -25,10 +25,11 @@ function validatePhase1() {
     return 'SPEC.md not found in project directory';
   }
   const content = readFileSync(specPath, 'utf-8');
-  const requiredSections = ['Concept', 'Features', 'Architecture', 'Contribution'];
-  const missing = requiredSections.filter(
-    (s) => !content.match(new RegExp(`^#{1,3}\\s.*${s}`, 'mi'))
-  );
+  const requiredSections = ['Concept', 'Feature', 'Architect', 'Contribut'];
+  const labels = ['Concept', 'Feature(s)', 'Architecture', 'Contribution'];
+  const missing = requiredSections
+    .map((s, i) => (!content.match(new RegExp(`^#{1,3}\\s.*${s}`, 'mi')) ? labels[i] : null))
+    .filter(Boolean);
   if (missing.length > 0) {
     return `SPEC.md missing sections: ${missing.join(', ')}`;
   }
@@ -54,10 +55,11 @@ function validatePhase3() {
     return 'BUG_REPORT.md not found in project directory';
   }
   const content = readFileSync(bugPath, 'utf-8');
-  const requiredSections = ['Security', 'Integration', 'Accessibility', 'Priority'];
-  const missing = requiredSections.filter(
-    (s) => !content.match(new RegExp(`^#{1,3}\\s.*${s}`, 'mi'))
-  );
+  const requiredSections = ['Security', 'Integrat', 'Accessib', 'Priorit'];
+  const labels = ['Security', 'Integration', 'Accessibility', 'Priority'];
+  const missing = requiredSections
+    .map((s, i) => (!content.match(new RegExp(`^#{1,3}\\s.*${s}`, 'mi')) ? labels[i] : null))
+    .filter(Boolean);
   if (missing.length > 0) {
     return `BUG_REPORT.md missing sections: ${missing.join(', ')}`;
   }
