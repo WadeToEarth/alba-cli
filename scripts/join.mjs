@@ -5,7 +5,7 @@ import { homedir } from 'os';
 import { mkdirSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 import { neon, tag } from '../lib/colors.mjs';
-import { checkHealth, listProjects, joinProject, downloadProjectZip } from '../lib/api.mjs';
+import { checkHealth, listProjects, joinProject, downloadProjectZip, getArtifacts } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
 import { isAuthenticated, loadCredentials, saveCredentials } from '../lib/auth.mjs';
@@ -226,21 +226,46 @@ console.log();
 const projectDir = join(homedir(), '.alba', 'builds', selectedProject.id);
 mkdirSync(projectDir, { recursive: true });
 
-// ── Download existing source code ────────────────────────
+// ── Download artifacts and/or source code ────────────────
 
-const dlSpinner = ora({ text: 'Downloading project source code...', color: 'cyan' }).start();
+const currentPhase = joinResult.currentPhase;
+
+// Phase 2-3: only need spec/design artifacts (no source code)
+// Phase 4+: need full source code ZIP
+const dlSpinner = ora({ text: 'Downloading project artifacts...', color: 'cyan' }).start();
 try {
-  const zipBuffer = await downloadProjectZip(selectedProject.id);
-  if (zipBuffer) {
-    const zipPath = join(projectDir, '..', `${selectedProject.id}-download.zip`);
-    writeFileSync(zipPath, zipBuffer);
-    execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
-    dlSpinner.succeed(neon.green(`Source code extracted (${(zipBuffer.length / 1024).toFixed(0)} KB)`));
+  // Always download text artifacts (SPEC.md, DESIGN.md, BUG_REPORT.md)
+  const artifacts = await getArtifacts(selectedProject.id);
+  let artifactCount = 0;
+  for (const [filename, content] of Object.entries(artifacts)) {
+    writeFileSync(join(projectDir, filename), content, 'utf-8');
+    artifactCount++;
+  }
+  if (artifactCount > 0) {
+    dlSpinner.succeed(neon.green(`Downloaded ${artifactCount} artifact(s): ${Object.keys(artifacts).join(', ')}`));
   } else {
-    dlSpinner.info(neon.dim('No source code uploaded yet — starting from scratch'));
+    dlSpinner.info(neon.dim('No artifacts uploaded yet'));
+  }
+
+  // Phase 4+: also download full source code
+  if (currentPhase >= 4) {
+    const srcSpinner = ora({ text: 'Downloading source code...', color: 'cyan' }).start();
+    try {
+      const zipBuffer = await downloadProjectZip(selectedProject.id);
+      if (zipBuffer) {
+        const zipPath = join(projectDir, '..', `${selectedProject.id}-download.zip`);
+        writeFileSync(zipPath, zipBuffer);
+        execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
+        srcSpinner.succeed(neon.green(`Source code extracted (${(zipBuffer.length / 1024).toFixed(0)} KB)`));
+      } else {
+        srcSpinner.info(neon.dim('No source code uploaded yet'));
+      }
+    } catch (err) {
+      srcSpinner.warn(neon.yellow(`Source download failed: ${err.message || 'unknown'}`));
+    }
   }
 } catch (err) {
-  dlSpinner.warn(neon.yellow(`Download failed: ${err.message || 'unknown'} — starting from scratch`));
+  dlSpinner.warn(neon.yellow(`Artifact download failed: ${err.message || 'unknown'}`));
 }
 console.log();
 

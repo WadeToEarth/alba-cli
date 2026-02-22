@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from 'fs';
 import { execSync } from 'child_process';
 import { join } from 'path';
 import { neon, tag } from '../lib/colors.mjs';
-import { recordTask, advancePhase } from '../lib/api.mjs';
+import { recordTask, advancePhase, saveArtifact } from '../lib/api.mjs';
 import { PHASES, getTaskReward } from '../lib/phases.mjs';
 
 // ── Parse arguments ──────────────────────────────────────
@@ -140,6 +140,29 @@ if (error) {
 }
 
 console.log(`  ${tag.phase} ${neon.green('✓ Artifacts validated')}`);
+
+// ── Upload phase artifacts to backend ───────────────────
+
+const PHASE_ARTIFACTS = {
+  1: ['SPEC.md'],
+  2: ['DESIGN.md'],
+  4: ['BUG_REPORT.md'],
+};
+
+if (online && projectId && PHASE_ARTIFACTS[phaseNumber]) {
+  for (const filename of PHASE_ARTIFACTS[phaseNumber]) {
+    const filePath = join(projectDir, filename);
+    if (existsSync(filePath)) {
+      try {
+        const content = readFileSync(filePath, 'utf-8');
+        await saveArtifact(projectId, filename, content);
+        console.log(`  ${tag.task} ${neon.green('✓')} ${neon.dim(`Uploaded ${filename} (${(content.length / 1024).toFixed(1)} KB)`)}`);
+      } catch (err) {
+        console.log(`  ${tag.error} ${neon.yellow(`Failed to upload ${filename}:`)} ${neon.dim(err.message || 'unknown')}`);
+      }
+    }
+  }
+}
 
 // ── Record tasks for this phase ─────────────────────────
 
