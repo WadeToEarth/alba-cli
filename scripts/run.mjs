@@ -54,7 +54,7 @@ async function autoLogin() {
             res.writeHead(200);
             res.end(JSON.stringify({ success: true }));
 
-            console.log(`  ${tag.reward} ${neon.green('Authentication successful!')}`);
+            console.log(`  ${tag.system} ${neon.green('Authentication successful!')}`);
             if (data.user?.email) {
               console.log(`  ${neon.dim('  Logged in as:')} ${neon.cyan(data.user.email)}`);
             }
@@ -158,7 +158,8 @@ const TASK_MESSAGES = [
 // ── Project Build Loop ───────────────────────────────────
 
 let running = true;
-let totalEarned = 0;
+let totalProjects = 0;
+let totalTasksCompleted = 0;
 
 process.on('SIGINT', () => {
   running = false;
@@ -187,7 +188,7 @@ async function buildProject(online) {
     }
   }
 
-  let projectEarned = 0;
+  let projectTaskCount = 0;
 
   for (const phaseData of PHASES) {
     if (!running) break;
@@ -210,8 +211,8 @@ async function buildProject(online) {
       if (!running) break;
 
       const reward = getTaskReward(taskDef.rewardRange);
-      totalEarned += reward;
-      projectEarned += reward;
+      projectTaskCount++;
+      totalTasksCompleted++;
 
       if (online && projectId) {
         try {
@@ -229,7 +230,7 @@ async function buildProject(online) {
       }
 
       console.log(
-        `  ${neon.dim(timestamp())} ${tag.reward} ${neon.green(`+$${reward.toFixed(2)}`)} ${neon.dim(taskDef.name)} ${neon.dim(`(total: $${totalEarned.toFixed(2)})`)}`
+        `  ${neon.dim(timestamp())} ${tag.task} ${neon.green('✓')} ${neon.dim(taskDef.name)}`
       );
     }
 
@@ -252,9 +253,10 @@ async function buildProject(online) {
   }
 
   if (running) {
+    totalProjects++;
     console.log(neon.green(`  ═══ Project "${projectName}" listed on marketplace ═══`));
     console.log(
-      `  ${neon.dim('Project earnings:')} ${neon.green('$' + projectEarned.toFixed(2))}`
+      `  ${neon.dim(`Project listed on marketplace — ${projectTaskCount} tasks completed`)}`
     );
     console.log();
   }
@@ -278,7 +280,7 @@ async function mainLoop(online) {
   console.log();
   console.log(neon.green('  ═══ Agent shutting down ═══'));
   console.log(
-    `  ${neon.dim('Session earnings:')} ${neon.green('$' + totalEarned.toFixed(2))}`
+    `  ${neon.dim(`Session: ${totalProjects} project${totalProjects !== 1 ? 's' : ''} built, ${totalTasksCompleted} tasks completed`)}`
   );
   console.log(`  ${neon.dim('Thank you for using ALBA.')}`);
   console.log();
