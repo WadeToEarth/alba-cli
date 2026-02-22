@@ -8,5 +8,6 @@
   },
   "repository": "https://github.com/WadeToEarth/alba-cli",
   "license": "MIT",
-  "keywords": ["alba", "agent", "cli", "earnings"]
+  "keywords": ["alba", "agent", "cli", "earnings"],
+  "skills": "./skills/"
 }
