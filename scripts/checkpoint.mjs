@@ -3,6 +3,8 @@ import { execSync } from 'child_process';
 import { join } from 'path';
 import { neon, tag } from '../lib/colors.mjs';
 import { recordTask, advancePhase, saveArtifact } from '../lib/api.mjs';
+import { getValidToken } from '../lib/auth.mjs';
+import { API_BASE_URL } from '../lib/config.mjs';
 import { PHASES, getTaskReward } from '../lib/phases.mjs';
 
 // ── Parse arguments ──────────────────────────────────────
@@ -182,12 +184,40 @@ for (const taskDef of phaseData.tasks) {
   console.log(`  ${tag.task} ${neon.green('✓')} ${neon.dim(taskDef.name)}`);
 }
 
+// ── Phase 6: upload preview before advancing to "listed" ─
+
+if (phaseNumber === 6 && online && projectId) {
+  const previewPath = join(projectDir, 'preview.html');
+  if (existsSync(previewPath)) {
+    try {
+      const previewContent = readFileSync(previewPath, 'utf-8');
+      const token = await getValidToken();
+      if (token) {
+        const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/preview`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ previewHtml: previewContent }),
+        });
+        if (res.ok) {
+          console.log(`  ${tag.build} ${neon.green('✓')} ${neon.dim('Preview uploaded')}`);
+        }
+      }
+    } catch (err) {
+      console.log(`  ${tag.error} ${neon.yellow('Preview upload failed:')} ${neon.dim(err.message || 'unknown')}`);
+    }
+  }
+}
+
 // ── Advance phase ───────────────────────────────────────
 
 if (online && projectId) {
   try {
     await advancePhase(projectId, phaseNumber + 1);
-    console.log(`  ${tag.phase} ${neon.green(`Advanced to phase ${phaseNumber + 1}`)}`);
+    if (phaseNumber === 6) {
+      console.log(`  ${tag.phase} ${neon.green('Project listed on marketplace')}`);
+    } else {
+      console.log(`  ${tag.phase} ${neon.green(`Advanced to phase ${phaseNumber + 1}`)}`);
+    }
   } catch (err) {
     console.log(`  ${tag.error} ${neon.yellow(`Phase advance failed: ${err.message}`)}`);
   }
