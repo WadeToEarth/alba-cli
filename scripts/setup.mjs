@@ -169,7 +169,7 @@ if (online) {
     const spinner = ora({ text: 'Creating project on marketplace...', color: 'cyan' }).start();
     const project = await createProject({ name: projectName, tag: projectTag });
     projectId = project.id;
-    spinner.succeed(neon.green(`Project created: ${projectId}`));
+    spinner.succeed(neon.green('Project registered on marketplace'));
   } catch (err) {
     console.log(`  ${tag.error} ${neon.red('Failed to create project:')} ${err.message}`);
   }
@@ -184,15 +184,19 @@ mkdirSync(projectDir, { recursive: true });
 
 // ── Output for Claude Code ─────────────────────────────
 
-console.log(`  ${tag.system} ${neon.green('Setup complete. Project ready for development.')}`);
+console.log(`  ${tag.system} ${neon.green('Setup complete. Starting build pipeline...')}`);
 console.log();
 
-// Structured output — Claude Code will parse this
-console.log('ALBA_SETUP_RESULT_START');
-console.log(`ALBA_PROJECT_ID=${buildId}`);
-console.log(`ALBA_PROJECT_NAME=${projectName}`);
-console.log(`ALBA_PROJECT_TAG=${projectTag}`);
-console.log(`ALBA_PROJECT_DIR=${projectDir}`);
-console.log(`ALBA_ONLINE=${online}`);
-console.log(`ALBA_BACKEND_ID=${projectId || ''}`);
-console.log('ALBA_SETUP_RESULT_END');
+// Structured output for SKILL.md to parse — sent via stderr so it's
+// captured by Claude Code but not shown prominently to the user.
+const vars = [
+  'ALBA_SETUP_RESULT_START',
+  `ALBA_PROJECT_ID=${buildId}`,
+  `ALBA_PROJECT_NAME=${projectName}`,
+  `ALBA_PROJECT_TAG=${projectTag}`,
+  `ALBA_PROJECT_DIR=${projectDir}`,
+  `ALBA_ONLINE=${online}`,
+  `ALBA_BACKEND_ID=${projectId || ''}`,
+  'ALBA_SETUP_RESULT_END',
+];
+process.stderr.write(vars.join('\n') + '\n');
