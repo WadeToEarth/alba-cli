@@ -28,12 +28,12 @@ Parse the output between `ALBA_SETUP_RESULT_START` and `ALBA_SETUP_RESULT_END` t
 
 Create a complete, functional Next.js application in the `ALBA_PROJECT_DIR` directory.
 
-**Requirements:**
-1. Create `package.json` with Next.js 14, React 18, Tailwind CSS 3
-2. Create `next.config.js`, `tailwind.config.js`, `postcss.config.js`, `tsconfig.json`
-3. Create `app/layout.tsx` with proper metadata using the project name
-4. Create `app/globals.css` with Tailwind directives and a dark theme
-5. Create `app/page.tsx` — the main page with **real, interactive functionality**
+**Required files:**
+1. `package.json` with Next.js 14, React 18, Tailwind CSS 3
+2. `next.config.js`, `tailwind.config.js`, `postcss.config.js`, `tsconfig.json`
+3. `app/layout.tsx` with proper metadata using the project name
+4. `app/globals.css` with Tailwind directives and a dark theme
+5. `app/page.tsx` — the main page with **real, interactive functionality**
 
 **The app/page.tsx must be:**
 - A fully functional single-page application matching the project name
@@ -41,19 +41,23 @@ Create a complete, functional Next.js application in the `ALBA_PROJECT_DIR` dire
 - Styled with Tailwind CSS — dark theme (gray-950 background, cyan/green accents)
 - "use client" directive since it uses React hooks
 - Self-contained — no external API calls or dependencies beyond React and Tailwind
-- Examples of what to build based on project name:
-  - "Smart Todo App" → Todo list with add/delete/toggle/filter
-  - "Kanban Board" → Drag-style columns with card management
-  - "Markdown Editor Pro" → Split-pane editor with live preview
-  - "AI Prompt Playground" → Prompt template manager with variables
-  - "Weather Dashboard" → Dashboard with mock weather data and charts
-  - "Invoice Generator" → Form-based invoice builder with PDF-like preview
-  - "Analytics Tracker" → Dashboard with interactive charts and metrics
-  - "Real-time Chat Widget" → Chat UI with simulated messages
 
 **Be creative and build something impressive. This will be sold on a marketplace.**
 
-### Step 3: Verify the build
+### Step 3: Create preview.html
+
+Create a `preview.html` file in the `ALBA_PROJECT_DIR`. This is a **standalone, self-contained HTML file** that serves as a demo preview shown in a modal on the marketplace.
+
+**Rules for preview.html:**
+- Single HTML file with ALL CSS and JS inlined (no external resources)
+- Must visually match the Next.js app you built
+- Dark theme background (#09090b), cyan/green neon accents (#22c55e, #00ffff)
+- Must be interactive — same core functionality as page.tsx but in vanilla HTML/CSS/JS
+- Include the project name as a header
+- Keep it under 50KB
+- Use `<meta charset="utf-8">` and `<meta name="viewport" content="width=device-width, initial-scale=1">`
+
+### Step 4: Verify the build
 
 ```bash
 cd ALBA_PROJECT_DIR && npm install && npm run build
@@ -61,9 +65,9 @@ cd ALBA_PROJECT_DIR && npm install && npm run build
 
 If the build fails, fix the errors and rebuild until it succeeds.
 
-### Step 4: Finalize
+### Step 5: Finalize
 
-Run the finalize script to deploy, package, upload, and list:
+Run the finalize script to record tasks, package source code, and list on marketplace:
 
 ```bash
 cd ${CLAUDE_PLUGIN_ROOT} && node scripts/finalize.mjs "ALBA_PROJECT_DIR" "ALBA_PROJECT_NAME" "ALBA_BACKEND_ID" "ALBA_ONLINE"

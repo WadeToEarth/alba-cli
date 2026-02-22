@@ -84,7 +84,7 @@ if (existsSync(pkgPath)) {
     execSync('npm run build 2>/dev/null', { cwd: projectDir, timeout: 120000 });
     console.log(`  ${tag.build} ${neon.green('✓')} ${neon.dim('Build successful')}`);
     buildSuccess = true;
-  } catch (err) {
+  } catch {
     console.log(`  ${tag.error} ${neon.yellow('Build failed — continuing anyway')}`);
   }
 } else {
@@ -101,44 +101,34 @@ await safeAdvancePhase(5);
 console.log(`  ${tag.phase} ${neon.dim('Phase 4 complete')}`);
 console.log();
 
-// ── Phase 5: Demo — deploy + package + upload ────────────
+// ── Phase 5: Demo — preview + package + upload ───────────
 
 console.log(`  ${tag.phase} ${neon.magenta('═══ Phase 5: Demo ═══')}`);
 
-let demoUrl = null;
-
-// Deploy to Vercel (optional)
-if (buildSuccess) {
+// Upload preview.html to backend
+const previewPath = join(projectDir, 'preview.html');
+if (online && projectId && existsSync(previewPath)) {
   try {
-    execSync('npx vercel --version', { stdio: 'ignore' });
-    const safeName = projectName.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-    console.log(`  ${tag.deploy} ${neon.cyan('Deploying to Vercel...')}`);
-    const result = execSync(
-      `npx vercel deploy --yes --name alba-${safeName} --prod 2>&1`,
-      { cwd: projectDir, encoding: 'utf-8', timeout: 120000 }
-    );
-    const urlMatch = result.match(/https:\/\/[^\s]+\.vercel\.app/);
-    if (urlMatch) {
-      demoUrl = urlMatch[0];
-      console.log(`  ${tag.deploy} ${neon.green('✓')} ${neon.dim('Live at')} ${neon.cyan(demoUrl)}`);
-    }
-  } catch {
-    console.log(`  ${tag.system} ${neon.dim('Vercel not available — skipping deployment')}`);
-  }
-}
-
-// Update demo URL on backend
-if (demoUrl && online && projectId) {
-  try {
+    const previewHtml = readFileSync(previewPath, 'utf-8');
     const token = getToken();
     if (token) {
-      await fetch(`${API_BASE_URL}/api/projects/${projectId}/demo-url`, {
+      console.log(`  ${tag.build} ${neon.cyan('Uploading demo preview...')}`);
+      const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/preview`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ demoUrl }),
+        body: JSON.stringify({ previewHtml }),
       });
+      if (res.ok) {
+        console.log(`  ${tag.build} ${neon.green('✓')} ${neon.dim(`Preview uploaded (${(previewHtml.length / 1024).toFixed(1)} KB)`)}`);
+      } else {
+        console.log(`  ${tag.error} ${neon.yellow(`Preview upload failed: HTTP ${res.status}`)}`);
+      }
     }
-  } catch {}
+  } catch (err) {
+    console.log(`  ${tag.error} ${neon.yellow('Preview upload error:')} ${neon.dim(err.message || 'unknown')}`);
+  }
+} else if (!existsSync(previewPath)) {
+  console.log(`  ${tag.system} ${neon.dim('No preview.html found — skipping preview upload')}`);
 }
 
 // Package source code as ZIP and upload
@@ -154,7 +144,6 @@ if (online && projectId) {
     const stats = statSync(zipPath);
     console.log(`  ${tag.build} ${neon.dim(`ZIP: ${(stats.size / 1024).toFixed(0)} KB`)}`);
 
-    // Upload
     const token = getToken();
     if (token) {
       const fileBuffer = readFileSync(zipPath);
@@ -184,7 +173,7 @@ for (const taskDef of phase5.tasks) {
   await safeRecordTask(phase5, taskDef);
   console.log(`  ${tag.task} ${neon.green('✓')} ${neon.dim(taskDef.name)}`);
 }
-await safeAdvancePhase(6); // Phase 6 → triggers auto-listing
+await safeAdvancePhase(6);
 console.log(`  ${tag.phase} ${neon.dim('Phase 5 complete')}`);
 console.log();
 
@@ -192,9 +181,6 @@ console.log();
 
 console.log(neon.green(`  ═══ Project "${projectName}" listed on marketplace ═══`));
 console.log(`  ${neon.dim('Build directory:')} ${neon.dim(projectDir)}`);
-if (demoUrl) {
-  console.log(`  ${neon.dim('Demo URL:')} ${neon.cyan(demoUrl)}`);
-}
 if (projectId) {
   console.log(`  ${neon.dim('Project ID:')} ${neon.dim(projectId)}`);
 }
