@@ -136,7 +136,12 @@ async function bootSequence() {
   } catch (err) {
     spinner.fail(neon.red('Backend unreachable'));
     console.log(`  ${tag.error} ${err.message}`);
-    console.log(`  ${neon.dim('  Agent will continue in offline mode...')}`);
+    console.log();
+    console.log(`  ${neon.yellow('⚠  OFFLINE MODE')}`);
+    console.log(`  ${neon.dim('  Backend connection failed. The agent will simulate builds locally.')}`);
+    console.log(`  ${neon.dim('  Projects will NOT be saved to the marketplace.')}`);
+    console.log(`  ${neon.dim('  Tasks and contributions will NOT be recorded.')}`);
+    console.log(`  ${neon.dim('  To retry, restart with /alba:run')}`);
     console.log();
     return false;
   }
@@ -224,8 +229,8 @@ async function buildProject(online) {
             taskDescription: taskDef.description,
             reward,
           });
-        } catch {
-          // Silently continue
+        } catch (err) {
+          console.log(`  ${neon.dim(timestamp())} ${tag.error} ${neon.yellow('Failed to record task:')} ${neon.dim(err.message || 'unknown error')}`);
         }
       }
 
@@ -239,8 +244,8 @@ async function buildProject(online) {
     if (online && projectId) {
       try {
         await advancePhase(projectId, phaseData.phase + 1);
-      } catch {
-        // Silently continue
+      } catch (err) {
+        console.log(`  ${neon.dim(timestamp())} ${tag.error} ${neon.yellow('Failed to advance phase:')} ${neon.dim(err.message || 'unknown error')}`);
       }
     }
 

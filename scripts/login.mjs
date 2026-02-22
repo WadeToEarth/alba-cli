@@ -3,7 +3,7 @@ import { neon, tag } from '../lib/colors.mjs';
 import { saveCredentials } from '../lib/auth.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 
-const FRONTEND_URL = 'https://alba-web-zeta.vercel.app';
+const FRONTEND_URL = 'https://alba-run.vercel.app';
 const TIMEOUT_MS = 120_000; // 2 minutes
 
 printLogo();
