@@ -1,25 +1,19 @@
 import ora from 'ora';
 import { neon, tag } from '../lib/colors.mjs';
-import { checkHealth, listProjects } from '../lib/api.mjs';
+import { checkHealth, createProject, recordTask, advancePhase } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
-import { TIMING, AGENT_MESSAGES } from '../lib/config.mjs';
+import { TIMING } from '../lib/config.mjs';
+import { PHASES, getTaskReward } from '../lib/phases.mjs';
+import { randomProjectName, randomTag } from '../lib/project-names.mjs';
 import { isAuthenticated, loadCredentials } from '../lib/auth.mjs';
 
 // ── Helpers ──────────────────────────────────────────────
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function timestamp() {
   return new Date().toLocaleTimeString('en-US', { hour12: false });
-}
-
-function colorMessage(msg) {
-  if (msg.startsWith('[AGENT]')) return `${tag.agent} ${neon.cyan(msg.slice(8))}`;
-  if (msg.startsWith('[BUILD]')) return `${tag.build} ${neon.yellow(msg.slice(8))}`;
-  if (msg.startsWith('[DEPLOY]')) return `${tag.deploy} ${neon.magenta(msg.slice(9))}`;
-  return `${tag.system} ${neon.dim(msg)}`;
 }
 
 // ── Boot Sequence ────────────────────────────────────────
@@ -64,7 +58,20 @@ async function bootSequence() {
   }
 }
 
-// ── Agent Simulation Loop ────────────────────────────────
+// ── Task Messages ────────────────────────────────────────
+
+const TASK_MESSAGES = [
+  'Analyzing project structure...',
+  'Evaluating dependencies...',
+  'Running static analysis...',
+  'Optimizing module graph...',
+  'Generating artifacts...',
+  'Validating output...',
+  'Compiling components...',
+  'Reviewing code quality...',
+];
+
+// ── Project Build Loop ───────────────────────────────────
 
 let running = true;
 let totalEarned = 0;
@@ -73,46 +80,126 @@ process.on('SIGINT', () => {
   running = false;
 });
 
-async function agentLoop(online) {
-  console.log(neon.green('  ═══ Agent simulation started ═══'));
-  console.log(neon.dim('  Press Ctrl+C to stop'));
+async function buildProject(online) {
+  const projectName = randomProjectName();
+  const projectTag = randomTag();
+  let projectId = null;
+
+  // Create project
+  console.log(neon.green(`  ═══ New Project: ${projectName} ═══`));
+  console.log(`  ${neon.dim('Tag:')} ${neon.cyan(projectTag)}`);
   console.log();
 
-  let tick = 0;
-
-  while (running) {
-    tick++;
-    const time = timestamp();
-
-    // Agent log message
-    const msg = pick(AGENT_MESSAGES);
-    console.log(`  ${neon.dim(time)} ${colorMessage(msg)}`);
-
-    // Network sync (~every 15s at ~2s avg interval → every ~8 ticks)
-    if (online && tick % 8 === 0) {
-      try {
-        const projects = await listProjects();
-        const count = Array.isArray(projects) ? projects.length : 0;
-        console.log(
-          `  ${neon.dim(time)} ${tag.system} ${neon.dim(`Network sync — ${count} project(s) indexed`)}`
-        );
-      } catch {
-        console.log(
-          `  ${neon.dim(time)} ${tag.system} ${neon.dim('Network sync — retrying...')}`
-        );
-      }
+  if (online) {
+    try {
+      const spinner = ora({ text: 'Creating project...', color: 'cyan' }).start();
+      const project = await createProject({ name: projectName, tag: projectTag });
+      projectId = project.id;
+      spinner.succeed(neon.green(`Project created: ${projectId}`));
+      console.log();
+    } catch (err) {
+      console.log(`  ${tag.error} ${neon.red('Failed to create project:')} ${err.message}`);
+      console.log(`  ${neon.dim('  Continuing in offline mode...')}`);
+      console.log();
     }
+  }
 
-    // Earnings reward (~every 20s → every ~10 ticks)
-    if (tick % 10 === 0) {
-      const reward = (rand(50, 250) / 100).toFixed(2);
-      totalEarned += parseFloat(reward);
+  let projectEarned = 0;
+
+  // Phase loop
+  for (const phaseData of PHASES) {
+    if (!running) break;
+
+    console.log(
+      `  ${tag.phase} ${neon.magenta(`═══ Phase ${phaseData.phase}: ${phaseData.label} ═══`)}`
+    );
+
+    // Task loop
+    for (const taskDef of phaseData.tasks) {
+      if (!running) break;
+
+      const time = timestamp();
+
+      // Simulate work messages
+      const msgCount = rand(2, 3);
+      for (let m = 0; m < msgCount; m++) {
+        const msg = TASK_MESSAGES[Math.floor(Math.random() * TASK_MESSAGES.length)];
+        console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.cyan(msg)}`);
+        await sleep(rand(TIMING.AGENT_LOG_MIN, TIMING.AGENT_LOG_MAX));
+        if (!running) break;
+      }
+
+      if (!running) break;
+
+      const reward = getTaskReward(taskDef.rewardRange);
+      totalEarned += reward;
+      projectEarned += reward;
+
+      // Record task via API
+      if (online && projectId) {
+        try {
+          await recordTask({
+            projectId,
+            phase: phaseData.phase,
+            phaseLabel: phaseData.label,
+            taskName: taskDef.name,
+            taskDescription: taskDef.description,
+            reward,
+          });
+        } catch {
+          // Silently continue
+        }
+      }
+
       console.log(
-        `  ${neon.dim(time)} ${tag.reward} ${neon.green(`+$${reward} earned`)} ${neon.dim(`(total: $${totalEarned.toFixed(2)})`)}`
+        `  ${neon.dim(timestamp())} ${tag.reward} ${neon.green(`+$${reward.toFixed(2)}`)} ${neon.dim(taskDef.name)} ${neon.dim(`(total: $${totalEarned.toFixed(2)})`)}`
       );
     }
 
-    await sleep(rand(TIMING.AGENT_LOG_MIN, TIMING.AGENT_LOG_MAX));
+    if (!running) break;
+
+    // Advance phase
+    if (online && projectId) {
+      try {
+        await advancePhase(projectId, phaseData.phase + 1);
+      } catch {
+        // Silently continue
+      }
+    }
+
+    console.log(
+      `  ${neon.dim(timestamp())} ${tag.phase} ${neon.dim(`Phase ${phaseData.phase} complete`)}`
+    );
+    console.log();
+
+    // Phase transition delay
+    await sleep(TIMING.PHASE_TRANSITION_DELAY);
+  }
+
+  // Project complete
+  if (running) {
+    console.log(neon.green(`  ═══ Project "${projectName}" listed on marketplace ═══`));
+    console.log(
+      `  ${neon.dim('Project earnings:')} ${neon.green('$' + projectEarned.toFixed(2))}`
+    );
+    console.log();
+  }
+}
+
+async function mainLoop(online) {
+  console.log(neon.dim('  Press Ctrl+C to stop'));
+  console.log();
+
+  while (running) {
+    await buildProject(online);
+
+    if (!running) break;
+
+    // Wait before starting next project
+    console.log(`  ${neon.dim('Next project starting in 5 seconds...')}`);
+    await sleep(5000);
+    if (!running) break;
+    console.log();
   }
 
   // Shutdown
@@ -142,4 +229,4 @@ if (creds?.user?.email) {
 }
 
 const online = await bootSequence();
-await agentLoop(online);
+await mainLoop(online);
