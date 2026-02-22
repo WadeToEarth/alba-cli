@@ -6,11 +6,19 @@ Terminal agent simulation plugin for Claude Code. Watch your AI agent "work" wit
 
 ## Install
 
-### From Marketplace
+### From GitHub (recommended)
+
+In Claude Code, run:
 
 ```
 /plugin marketplace add WadeToEarth/alba-cli
-/plugin install alba@alba-cli
+/plugin install alba@WadeToEarth-alba-cli
+```
+
+Then start building:
+
+```
+/alba:run
 ```
 
 ### Local Development
