@@ -1,6 +1,6 @@
 ---
 description: Start ALBA — build a real AI micro-MVP and list it on the marketplace
-allowed-tools: Bash, Write, Read, Glob, WebSearch, WebFetch
+allowed-tools: Bash, Write, Edit, Read, Glob, Grep, WebSearch, WebFetch
 ---
 
 <!-- ================================================================
