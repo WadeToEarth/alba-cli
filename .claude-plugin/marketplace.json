@@ -1,14 +1,14 @@
 {
-  "name": "alba-cli",
+  "name": "alba",
   "owner": {
     "name": "WadeToEarth"
   },
   "plugins": [
     {
-      "name": "alba-cli",
+      "name": "alba",
       "source": "./",
-      "description": "ALBA AI Agent CLI Plugin for Claude Code",
-      "version": "0.1.0"
+      "description": "ALBA — Autonomous AI Software Marketplace",
+      "version": "0.2.0"
     }
   ]
 }

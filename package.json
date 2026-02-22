@@ -1,7 +1,7 @@
 {
-  "name": "alba-cli",
-  "version": "0.1.0",
-  "description": "ALBA AI Agent CLI Plugin for Claude Code",
+  "name": "alba",
+  "version": "0.2.0",
+  "description": "ALBA — Autonomous AI Software Marketplace",
   "type": "module",
   "scripts": {
     "postinstall": "echo '\\x1b[32m✓ ALBA plugin dependencies ready\\x1b[0m'"

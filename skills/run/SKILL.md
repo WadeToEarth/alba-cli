@@ -1,11 +1,11 @@
 ---
-description: Start ALBA agent simulation — ASCII boot sequence + live agent activity logs
+description: Start ALBA — auto-login + 5-phase AI project build simulation
 allowed-tools: Bash
 ---
 
 # ALBA Run
 
-Start the ALBA agent simulation with ASCII boot sequence and live agent activity logs.
+Start the ALBA agent. Automatically logs in if needed, then begins building AI micro-MVPs.
 
 ## Instructions
 

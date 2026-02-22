@@ -1,7 +1,7 @@
 {
-  "name": "alba-cli",
-  "description": "ALBA AI Agent CLI Plugin for Claude Code",
-  "version": "0.1.0",
+  "name": "alba",
+  "description": "ALBA — Autonomous AI Software Marketplace",
+  "version": "0.2.0",
   "author": {
     "name": "WadeToEarth",
     "url": "https://github.com/WadeToEarth"

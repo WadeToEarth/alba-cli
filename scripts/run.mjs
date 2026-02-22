@@ -1,3 +1,4 @@
+import http from 'http';
 import ora from 'ora';
 import { neon, tag } from '../lib/colors.mjs';
 import { checkHealth, createProject, recordTask, advancePhase } from '../lib/api.mjs';
@@ -5,7 +6,9 @@ import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
 import { PHASES, getTaskReward } from '../lib/phases.mjs';
 import { randomProjectName, randomTag } from '../lib/project-names.mjs';
-import { isAuthenticated, loadCredentials } from '../lib/auth.mjs';
+import { isAuthenticated, loadCredentials, saveCredentials } from '../lib/auth.mjs';
+
+const FRONTEND_URL = 'https://alba-run.vercel.app';
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -14,6 +17,89 @@ const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
 function timestamp() {
   return new Date().toLocaleTimeString('en-US', { hour12: false });
+}
+
+// ── Auto Login ───────────────────────────────────────────
+
+async function autoLogin() {
+  return new Promise((resolve, reject) => {
+    console.log(`  ${tag.system} Starting authentication flow...`);
+    console.log();
+
+    const server = http.createServer((req, res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/callback') {
+        let body = '';
+        req.on('data', (chunk) => { body += chunk; });
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            if (!data.idToken) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ error: 'Missing idToken' }));
+              return;
+            }
+
+            saveCredentials(data.idToken, data.user || {});
+
+            res.writeHead(200);
+            res.end(JSON.stringify({ success: true }));
+
+            console.log(`  ${tag.reward} ${neon.green('Authentication successful!')}`);
+            if (data.user?.email) {
+              console.log(`  ${neon.dim('  Logged in as:')} ${neon.cyan(data.user.email)}`);
+            }
+            console.log();
+
+            setTimeout(() => {
+              server.close();
+              resolve();
+            }, 500);
+          } catch (err) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid JSON' }));
+          }
+        });
+        return;
+      }
+
+      res.writeHead(404);
+      res.end('Not found');
+    });
+
+    server.listen(0, '127.0.0.1', () => {
+      const port = server.address().port;
+      const authUrl = `${FRONTEND_URL}/auth/cli?port=${port}`;
+
+      console.log(`  ${neon.green('Open this URL in your browser to log in:')}`);
+      console.log();
+      console.log(`  ${neon.cyan(authUrl)}`);
+      console.log();
+      console.log(`  ${neon.dim('Waiting for authentication...')}`);
+      console.log();
+
+      import('open').then(({ default: open }) => {
+        open(authUrl).catch(() => {});
+      }).catch(() => {});
+    });
+
+    // Timeout after 2 minutes
+    setTimeout(() => {
+      console.log(`  ${tag.error} ${neon.red('Authentication timed out.')}`);
+      console.log();
+      server.close();
+      reject(new Error('Authentication timed out'));
+    }, 120_000);
+  });
 }
 
 // ── Boot Sequence ────────────────────────────────────────
@@ -27,8 +113,6 @@ const BOOT_LINES = [
 ];
 
 async function bootSequence() {
-  printLogo();
-
   for (const line of BOOT_LINES) {
     console.log(`  ${neon.dim('>')} ${neon.dim(line)}`);
     await sleep(TIMING.BOOT_LINE_DELAY);
@@ -85,7 +169,6 @@ async function buildProject(online) {
   const projectTag = randomTag();
   let projectId = null;
 
-  // Create project
   console.log(neon.green(`  ═══ New Project: ${projectName} ═══`));
   console.log(`  ${neon.dim('Tag:')} ${neon.cyan(projectTag)}`);
   console.log();
@@ -106,7 +189,6 @@ async function buildProject(online) {
 
   let projectEarned = 0;
 
-  // Phase loop
   for (const phaseData of PHASES) {
     if (!running) break;
 
@@ -114,13 +196,9 @@ async function buildProject(online) {
       `  ${tag.phase} ${neon.magenta(`═══ Phase ${phaseData.phase}: ${phaseData.label} ═══`)}`
     );
 
-    // Task loop
     for (const taskDef of phaseData.tasks) {
       if (!running) break;
 
-      const time = timestamp();
-
-      // Simulate work messages
       const msgCount = rand(2, 3);
       for (let m = 0; m < msgCount; m++) {
         const msg = TASK_MESSAGES[Math.floor(Math.random() * TASK_MESSAGES.length)];
@@ -135,7 +213,6 @@ async function buildProject(online) {
       totalEarned += reward;
       projectEarned += reward;
 
-      // Record task via API
       if (online && projectId) {
         try {
           await recordTask({
@@ -158,7 +235,6 @@ async function buildProject(online) {
 
     if (!running) break;
 
-    // Advance phase
     if (online && projectId) {
       try {
         await advancePhase(projectId, phaseData.phase + 1);
@@ -172,11 +248,9 @@ async function buildProject(online) {
     );
     console.log();
 
-    // Phase transition delay
     await sleep(TIMING.PHASE_TRANSITION_DELAY);
   }
 
-  // Project complete
   if (running) {
     console.log(neon.green(`  ═══ Project "${projectName}" listed on marketplace ═══`));
     console.log(
@@ -195,14 +269,12 @@ async function mainLoop(online) {
 
     if (!running) break;
 
-    // Wait before starting next project
     console.log(`  ${neon.dim('Next project starting in 5 seconds...')}`);
     await sleep(5000);
     if (!running) break;
     console.log();
   }
 
-  // Shutdown
   console.log();
   console.log(neon.green('  ═══ Agent shutting down ═══'));
   console.log(
@@ -214,12 +286,17 @@ async function mainLoop(online) {
 
 // ── Main ─────────────────────────────────────────────────
 
+printLogo();
+
+// Auto-login if not authenticated
 if (!isAuthenticated()) {
-  printLogo();
-  console.log(`  ${tag.error} ${neon.red('Not authenticated.')}`);
-  console.log(`  ${neon.dim('  Run')} ${neon.cyan('/alba:login')} ${neon.dim('to authenticate first.')}`);
+  console.log(`  ${tag.system} ${neon.yellow('Not logged in — starting login flow...')}`);
   console.log();
-  process.exit(1);
+  try {
+    await autoLogin();
+  } catch {
+    process.exit(1);
+  }
 }
 
 const creds = loadCredentials();
