@@ -8,7 +8,7 @@ import { neon, tag } from '../lib/colors.mjs';
 import { checkHealth, createProject, listProjects, joinProject, getArtifacts, downloadProjectZip } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
-import { randomProjectName, randomTag } from '../lib/project-names.mjs';
+import { randomProjectName, randomTag, getIdeaSource, generateDiverseIdea } from '../lib/project-names.mjs';
 import { isAuthenticated, loadCredentials, saveCredentials } from '../lib/auth.mjs';
 
 const FRONTEND_URL = 'https://alba-run.vercel.app';
@@ -270,19 +270,51 @@ if (online) {
 
 // Fall back to creating a new project
 if (!projectId) {
-  projectName = randomProjectName();
-  projectTag = randomTag();
+  let ideaSource = 'curated';
+  let ideaSourceDetail = '';
+  let projectDescription = '';
+
+  // 50% chance to try AI-generated idea
+  if (Math.random() < 0.5) {
+    try {
+      // Try AI generation (callClaude not available in setup, so pass null — falls back)
+      const aiIdea = await generateDiverseIdea(null);
+      if (aiIdea) {
+        projectName = aiIdea.name;
+        projectTag = aiIdea.tag;
+        projectDescription = aiIdea.description;
+        ideaSource = aiIdea.ideaSource;
+        ideaSourceDetail = aiIdea.ideaSourceDetail;
+      }
+    } catch {
+      // Fallback below
+    }
+  }
+
+  if (!projectName) {
+    projectName = randomProjectName();
+    projectTag = randomTag();
+    const source = getIdeaSource(projectName);
+    ideaSource = source.ideaSource;
+    ideaSourceDetail = source.ideaSourceDetail;
+  }
+
   currentPhase = 1;
   phaseName = 'Ideation';
 
   console.log(neon.green(`  ═══ New Project: ${projectName} ═══`));
   console.log(`  ${neon.dim('Tag:')} ${neon.cyan(projectTag)}`);
+  if (ideaSourceDetail) {
+    console.log(`  ${neon.dim('Source:')} ${neon.dim(ideaSourceDetail)}`);
+  }
   console.log();
 
   if (online) {
     try {
       const spinner = ora({ text: 'Creating project on marketplace...', color: 'cyan' }).start();
-      const project = await createProject({ name: projectName, tag: projectTag });
+      const createData = { name: projectName, tag: projectTag, ideaSource, ideaSourceDetail };
+      if (projectDescription) createData.description = projectDescription;
+      const project = await createProject(createData);
       projectId = project.id;
       spinner.succeed(neon.green('Project registered on marketplace'));
     } catch (err) {

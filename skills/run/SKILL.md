@@ -42,9 +42,30 @@ Route by `ALBA_CURRENT_PHASE`:
 
 ## Step 2: Ideation
 
-OUTPUT: `[ALBA] Phase 1: Ideation — ALBA_PROJECT_NAME`
+OUTPUT: `[ALBA] Phase 1: Ideation — generating idea...`
 
-Use WebSearch to research the tag. Write `SPEC.md` with: Concept (3+ ideas, pick best), Features (3-5 with acceptance criteria), Architecture (file tree, tech: Next.js 14, React 18, Tailwind), Contribution Assessment.
+### Generate a Creative Product Idea
+
+Do NOT use the project name from setup. Instead, generate a truly original product idea:
+
+1. **Pick a random domain** from this diverse list (rotate, don't repeat recent ones):
+   Biotech, Space Tech, AR/VR, Accessibility, Urban Farming, Mental Health, Music Tech, Ocean Conservation, Elder Care, Disaster Response, Language Preservation, Sustainable Fashion, Quantum Computing, Neuroscience, Wildlife Tracking, Supply Chain, Legal Tech, Sports Analytics, Food Waste, Carbon Trading, Remote Education, Citizen Science, Digital Art, Micro-Finance, Smart Home, Wearables, Robotics, Blockchain, Cybersecurity, Genomics
+
+2. **WebSearch** for recent news/trends in that domain (e.g. "latest {domain} startups 2025 2026", "{domain} innovative tools")
+
+3. **Invent a specific, creative product** inspired by your research. It should be:
+   - Specific (not generic like "Todo App" — more like "Coral Reef Health Monitor" or "ASL Learning Companion")
+   - Buildable as a web micro-MVP with Next.js
+   - Something that would impress on a marketplace
+
+4. **Update the project** with your idea:
+```bash
+cd ${CLAUDE_PLUGIN_ROOT} && node scripts/update-idea.mjs "ALBA_BACKEND_ID" "YOUR_PRODUCT_NAME" "DOMAIN_TAG" "One-line description" "ai-generated" "Inspired by {domain} trend: {specific insight}"
+```
+
+OUTPUT: `[ALBA] Phase 1: Ideation — YOUR_PRODUCT_NAME`
+
+5. Write `SPEC.md` with: Concept (why this matters, target users), Features (3-5 with acceptance criteria), Architecture (file tree, tech: Next.js 14, React 18, Tailwind), Contribution Assessment.
 
 ```bash
 cd ${CLAUDE_PLUGIN_ROOT} && node scripts/checkpoint.mjs 1 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
