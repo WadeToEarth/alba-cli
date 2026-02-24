@@ -26,8 +26,8 @@ Each command MUST be a separate Bash tool call. This ensures auto-approval works
 **Bad:** `cd /path && npm install && node scripts/setup.mjs`
 **Good:** Three separate Bash calls:
 1. `cd /path`
-2. `npm install --silent`
-3. `node scripts/setup.mjs`
+2. `npm install --silent 2>/dev/null`
+3. `node scripts/setup.mjs --quiet`
 
 The working directory persists between Bash calls, so `cd` in one call affects the next.
 
@@ -74,6 +74,8 @@ Read the error. Fix the root cause. Don't retry the same thing.
 
 ## Step 1: Setup
 
+OUTPUT: `[ALBA] ▶ Setup — initializing...`
+
 Run these as **separate** Bash calls:
 
 ```bash
@@ -83,12 +85,14 @@ cd ${CLAUDE_PLUGIN_ROOT}
 npm install --silent 2>/dev/null
 ```
 ```bash
-node scripts/setup.mjs
+node scripts/setup.mjs --quiet
 ```
 
 Parse stderr between `ALBA_SETUP_RESULT_START` and `ALBA_SETUP_RESULT_END`:
 - `ALBA_PROJECT_DIR`, `ALBA_PROJECT_NAME`, `ALBA_PROJECT_TAG`, `ALBA_BACKEND_ID`, `ALBA_ONLINE`
 - `ALBA_CURRENT_PHASE`, `ALBA_PHASE_NAME`
+
+OUTPUT: `[ALBA] ✓ Setup — ALBA_PROJECT_NAME`
 
 Route by `ALBA_CURRENT_PHASE`:
 - 1 → Step 2, then continue all steps through Step 7
@@ -102,7 +106,7 @@ Route by `ALBA_CURRENT_PHASE`:
 
 ## Step 2: Ideation
 
-OUTPUT: `[ALBA] Phase 1: Ideation — generating idea...`
+OUTPUT: `[ALBA] ▶ Ideation (1/6) — generating idea...`
 
 ### Goal
 A product specification that a developer can build from without asking questions.
@@ -126,10 +130,10 @@ Do NOT use the project name from setup. Instead, generate a truly original produ
 cd ${CLAUDE_PLUGIN_ROOT}
 ```
 ```bash
-node scripts/update-idea.mjs "ALBA_BACKEND_ID" "YOUR_PRODUCT_NAME" "DOMAIN_TAG" "One-line description" "ai-generated" "Inspired by {domain} trend: {specific insight}"
+node scripts/update-idea.mjs "ALBA_BACKEND_ID" "YOUR_PRODUCT_NAME" "DOMAIN_TAG" "One-line description" "ai-generated" "Inspired by {domain} trend: {specific insight}" --quiet
 ```
 
-OUTPUT: `[ALBA] Phase 1: Ideation — YOUR_PRODUCT_NAME`
+OUTPUT: `[ALBA] ✓ Ideation (1/6) — "YOUR_PRODUCT_NAME"`
 
 5. Write `SPEC.md` with: Concept (why this matters, target users), Features (3-5 with acceptance criteria), Architecture (file tree, tech: Next.js 14, React 18, Tailwind), Contribution Assessment.
 
@@ -147,14 +151,14 @@ OUTPUT: `[ALBA] Phase 1: Ideation — YOUR_PRODUCT_NAME`
 cd ${CLAUDE_PLUGIN_ROOT}
 ```
 ```bash
-node scripts/checkpoint.mjs 1 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
+node scripts/checkpoint.mjs 1 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE" --quiet
 ```
 
 ---
 
 ## Step 3: Design
 
-OUTPUT: `[ALBA] Phase 2: Design — ALBA_PROJECT_NAME`
+OUTPUT: `[ALBA] ▶ Design (2/6)`
 
 ### Goal
 A design document detailed enough that a developer can implement without asking design questions.
@@ -175,8 +179,10 @@ Read SPEC.md completely (fresh eyes). Write `DESIGN.md` with: Component Detail S
 cd ${CLAUDE_PLUGIN_ROOT}
 ```
 ```bash
-node scripts/checkpoint.mjs 2 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
+node scripts/checkpoint.mjs 2 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE" --quiet
 ```
+
+OUTPUT: `[ALBA] ✓ Design (2/6)`
 
 If joined at phase 2 → Step 8.
 
@@ -184,7 +190,7 @@ If joined at phase 2 → Step 8.
 
 ## Step 4: Implementation
 
-OUTPUT: `[ALBA] Phase 3: Implementation — ALBA_PROJECT_NAME`
+OUTPUT: `[ALBA] ▶ Implementation (3/6) — building...`
 
 ### Goal
 A working Next.js application that builds successfully and implements ALL spec features.
@@ -206,7 +212,7 @@ Read SPEC.md + DESIGN.md (fresh eyes — you did NOT write these). Scaffold Next
 cd ALBA_PROJECT_DIR
 ```
 ```bash
-npm install
+npm install --silent 2>/dev/null
 ```
 ```bash
 npm run build
@@ -215,8 +221,10 @@ npm run build
 cd ${CLAUDE_PLUGIN_ROOT}
 ```
 ```bash
-node scripts/checkpoint.mjs 3 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
+node scripts/checkpoint.mjs 3 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE" --quiet
 ```
+
+OUTPUT: `[ALBA] ✓ Implementation (3/6) — build passed`
 
 If joined at phase 3 → Step 8.
 
@@ -224,7 +232,7 @@ If joined at phase 3 → Step 8.
 
 ## Step 5: Review
 
-OUTPUT: `[ALBA] Phase 4: Review — ALBA_PROJECT_NAME`
+OUTPUT: `[ALBA] ▶ Review (4/6) — auditing code...`
 
 ### Goal
 A thorough bug report that catches real issues, with reproducible descriptions.
@@ -246,8 +254,10 @@ Read ALL source files (fresh eyes — read every .tsx, .ts, .css file). Write `B
 cd ${CLAUDE_PLUGIN_ROOT}
 ```
 ```bash
-node scripts/checkpoint.mjs 4 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
+node scripts/checkpoint.mjs 4 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE" --quiet
 ```
+
+OUTPUT: `[ALBA] ✓ Review (4/6)`
 
 If joined at phase 4 → Step 8.
 
@@ -255,7 +265,7 @@ If joined at phase 4 → Step 8.
 
 ## Step 6: Bug Fix
 
-OUTPUT: `[ALBA] Phase 5: Bug Fix — ALBA_PROJECT_NAME`
+OUTPUT: `[ALBA] ▶ Bug Fix (5/6) — patching...`
 
 ### Goal
 All P0/P1 bugs fixed with minimal surgical changes. Build still passes.
@@ -284,8 +294,10 @@ npm run build
 cd ${CLAUDE_PLUGIN_ROOT}
 ```
 ```bash
-node scripts/checkpoint.mjs 5 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
+node scripts/checkpoint.mjs 5 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE" --quiet
 ```
+
+OUTPUT: `[ALBA] ✓ Bug Fix (5/6) — all P0/P1 fixed`
 
 If joined at phase 5 → Step 8.
 
@@ -293,7 +305,7 @@ If joined at phase 5 → Step 8.
 
 ## Step 7: Demo
 
-OUTPUT: `[ALBA] Phase 6: Demo — ALBA_PROJECT_NAME`
+OUTPUT: `[ALBA] ▶ Demo (6/6) — creating preview...`
 
 ### Goal
 A self-contained preview.html that showcases ALL features with working interactivity.
@@ -317,8 +329,10 @@ Read SPEC.md + source (fresh eyes). Create `preview.html`: single file, all CSS/
 cd ${CLAUDE_PLUGIN_ROOT}
 ```
 ```bash
-node scripts/checkpoint.mjs 6 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
+node scripts/checkpoint.mjs 6 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE" --quiet
 ```
+
+OUTPUT: `[ALBA] ✓ Demo (6/6) — preview.html ready`
 
 ---
 
@@ -328,10 +342,10 @@ node scripts/checkpoint.mjs 6 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
 cd ${CLAUDE_PLUGIN_ROOT}
 ```
 ```bash
-node scripts/finalize.mjs "ALBA_PROJECT_DIR" "ALBA_PROJECT_NAME" "ALBA_BACKEND_ID" "ALBA_ONLINE"
+node scripts/finalize.mjs "ALBA_PROJECT_DIR" "ALBA_PROJECT_NAME" "ALBA_BACKEND_ID" "ALBA_ONLINE" --quiet
 ```
 
-OUTPUT: `[ALBA] Listed: ALBA_PROJECT_NAME`
+OUTPUT: `[ALBA] ★ Listed: "ALBA_PROJECT_NAME"`
 
 ---
 

@@ -13,6 +13,7 @@ import { isAuthenticated, loadCredentials, saveCredentials } from '../lib/auth.m
 
 const FRONTEND_URL = 'https://alba-run.vercel.app';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const quiet = process.argv.includes('--quiet');
 
 const PHASE_NAMES = ['', 'Ideation', 'Design', 'Implementation', 'Review', 'Bug Fix', 'Demo'];
 
@@ -20,8 +21,8 @@ const PHASE_NAMES = ['', 'Ideation', 'Design', 'Implementation', 'Review', 'Bug 
 
 async function autoLogin() {
   return new Promise((resolve, reject) => {
-    console.log(`  ${tag.system} Starting authentication flow...`);
-    console.log();
+    if (!quiet) console.log(`  ${tag.system} Starting authentication flow...`);
+    if (!quiet) console.log();
 
     const server = http.createServer((req, res) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -51,11 +52,11 @@ async function autoLogin() {
             res.writeHead(200);
             res.end(JSON.stringify({ success: true }));
 
-            console.log(`  ${tag.system} ${neon.green('Authentication successful!')}`);
-            if (data.user?.email) {
+            if (!quiet) console.log(`  ${tag.system} ${neon.green('Authentication successful!')}`);
+            if (!quiet && data.user?.email) {
               console.log(`  ${neon.dim('  Logged in as:')} ${neon.cyan(data.user.email)}`);
             }
-            console.log();
+            if (!quiet) console.log();
 
             setTimeout(() => {
               server.close();
@@ -77,12 +78,16 @@ async function autoLogin() {
       const port = server.address().port;
       const authUrl = `${FRONTEND_URL}/auth/cli?port=${port}`;
 
-      console.log(`  ${neon.green('Open this URL in your browser to log in:')}`);
-      console.log();
-      console.log(`  ${neon.cyan(authUrl)}`);
-      console.log();
-      console.log(`  ${neon.dim('Waiting for authentication...')}`);
-      console.log();
+      if (quiet) {
+        console.log(authUrl);
+      } else {
+        console.log(`  ${neon.green('Open this URL in your browser to log in:')}`);
+        console.log();
+        console.log(`  ${neon.cyan(authUrl)}`);
+        console.log();
+        console.log(`  ${neon.dim('Waiting for authentication...')}`);
+        console.log();
+      }
 
       import('open').then(({ default: open }) => {
         open(authUrl).catch(() => {});
@@ -90,8 +95,10 @@ async function autoLogin() {
     });
 
     setTimeout(() => {
-      console.log(`  ${tag.error} ${neon.red('Authentication timed out.')}`);
-      console.log();
+      if (!quiet) {
+        console.log(`  ${tag.error} ${neon.red('Authentication timed out.')}`);
+        console.log();
+      }
       server.close();
       reject(new Error('Authentication timed out'));
     }, 120_000);
@@ -100,7 +107,18 @@ async function autoLogin() {
 
 // ── Boot Sequence ────────────────────────────────────────
 
+async function silentHealthCheck() {
+  try {
+    await checkHealth();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function bootSequence() {
+  if (quiet) return silentHealthCheck();
+
   const BOOT_LINES = [
     'Initializing ALBA runtime...',
     'Loading agent configuration...',
@@ -136,35 +154,39 @@ async function bootSequence() {
 // ── Try Auto-Join ────────────────────────────────────────
 
 async function tryAutoJoin() {
-  const spinner = ora({ text: 'Looking for building projects to join...', color: 'cyan' }).start();
+  let spinner;
+  if (!quiet) spinner = ora({ text: 'Looking for building projects to join...', color: 'cyan' }).start();
 
   let projects;
   try {
     const all = await listProjects();
     projects = all.filter((p) => p.status === 'building');
   } catch (err) {
-    spinner.fail(neon.yellow(`Failed to list projects: ${err.message}`));
+    if (spinner) spinner.fail(neon.yellow(`Failed to list projects: ${err.message}`));
     return null;
   }
 
   if (projects.length === 0) {
-    spinner.info(neon.dim('No building projects available — creating new project'));
+    if (spinner) spinner.info(neon.dim('No building projects available — creating new project'));
     return null;
   }
 
-  spinner.succeed(neon.green(`Found ${projects.length} building project(s)`));
+  if (spinner) spinner.succeed(neon.green(`Found ${projects.length} building project(s)`));
 
   // Try joining each project
   for (const project of projects) {
     const phaseName = PHASE_NAMES[project.currentPhase] || 'Unknown';
-    const joinSpinner = ora({
-      text: `Joining "${project.name}" (Phase ${project.currentPhase}: ${phaseName})...`,
-      color: 'cyan',
-    }).start();
+    let joinSpinner;
+    if (!quiet) {
+      joinSpinner = ora({
+        text: `Joining "${project.name}" (Phase ${project.currentPhase}: ${phaseName})...`,
+        color: 'cyan',
+      }).start();
+    }
 
     try {
       const joinResult = await joinProject(project.id);
-      joinSpinner.succeed(neon.green(`Joined "${project.name}" — Phase ${joinResult.currentPhase}: ${joinResult.phaseName}`));
+      if (joinSpinner) joinSpinner.succeed(neon.green(`Joined "${project.name}" — Phase ${joinResult.currentPhase}: ${joinResult.phaseName}`));
 
       // Create local build directory
       const projectDir = join(homedir(), '.alba', 'builds', project.id);
@@ -173,7 +195,8 @@ async function tryAutoJoin() {
       const currentPhase = joinResult.currentPhase;
 
       // Download artifacts
-      const dlSpinner = ora({ text: 'Downloading project artifacts...', color: 'cyan' }).start();
+      let dlSpinner;
+      if (!quiet) dlSpinner = ora({ text: 'Downloading project artifacts...', color: 'cyan' }).start();
       try {
         const artifacts = await getArtifacts(project.id);
         let artifactCount = 0;
@@ -182,30 +205,31 @@ async function tryAutoJoin() {
           artifactCount++;
         }
         if (artifactCount > 0) {
-          dlSpinner.succeed(neon.green(`Downloaded ${artifactCount} artifact(s): ${Object.keys(artifacts).join(', ')}`));
+          if (dlSpinner) dlSpinner.succeed(neon.green(`Downloaded ${artifactCount} artifact(s): ${Object.keys(artifacts).join(', ')}`));
         } else {
-          dlSpinner.info(neon.dim('No artifacts uploaded yet'));
+          if (dlSpinner) dlSpinner.info(neon.dim('No artifacts uploaded yet'));
         }
 
         // Phase 4+: also download full source code
         if (currentPhase >= 4) {
-          const srcSpinner = ora({ text: 'Downloading source code...', color: 'cyan' }).start();
+          let srcSpinner;
+          if (!quiet) srcSpinner = ora({ text: 'Downloading source code...', color: 'cyan' }).start();
           try {
             const zipBuffer = await downloadProjectZip(project.id);
             if (zipBuffer) {
               const zipPath = join(projectDir, '..', `${project.id}-download.zip`);
               writeFileSync(zipPath, zipBuffer);
               execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
-              srcSpinner.succeed(neon.green(`Source code extracted (${(zipBuffer.length / 1024).toFixed(0)} KB)`));
+              if (srcSpinner) srcSpinner.succeed(neon.green(`Source code extracted (${(zipBuffer.length / 1024).toFixed(0)} KB)`));
             } else {
-              srcSpinner.info(neon.dim('No source code uploaded yet'));
+              if (srcSpinner) srcSpinner.info(neon.dim('No source code uploaded yet'));
             }
           } catch (err) {
-            srcSpinner.warn(neon.yellow(`Source download failed: ${err.message || 'unknown'}`));
+            if (srcSpinner) srcSpinner.warn(neon.yellow(`Source download failed: ${err.message || 'unknown'}`));
           }
         }
       } catch (err) {
-        dlSpinner.warn(neon.yellow(`Artifact download failed: ${err.message || 'unknown'}`));
+        if (dlSpinner) dlSpinner.warn(neon.yellow(`Artifact download failed: ${err.message || 'unknown'}`));
       }
 
       return {
@@ -218,25 +242,27 @@ async function tryAutoJoin() {
       };
     } catch (err) {
       if (err.message && err.message.includes('409')) {
-        joinSpinner.warn(neon.dim(`Already contributed to "${project.name}" — skipping`));
+        if (joinSpinner) joinSpinner.warn(neon.dim(`Already contributed to "${project.name}" — skipping`));
       } else {
-        joinSpinner.warn(neon.yellow(`Failed to join "${project.name}": ${err.message}`));
+        if (joinSpinner) joinSpinner.warn(neon.yellow(`Failed to join "${project.name}": ${err.message}`));
       }
     }
   }
 
-  console.log(`  ${neon.dim('All building projects skipped — creating new project')}`);
+  if (!quiet) console.log(`  ${neon.dim('All building projects skipped — creating new project')}`);
   return null;
 }
 
 // ── Main ─────────────────────────────────────────────────
 
-printLogo();
+if (!quiet) printLogo();
 
 // Auto-login if not authenticated
 if (!isAuthenticated()) {
-  console.log(`  ${tag.system} ${neon.yellow('Not logged in — starting login flow...')}`);
-  console.log();
+  if (!quiet) {
+    console.log(`  ${tag.system} ${neon.yellow('Not logged in — starting login flow...')}`);
+    console.log();
+  }
   try {
     await autoLogin();
   } catch {
@@ -245,7 +271,7 @@ if (!isAuthenticated()) {
 }
 
 const creds = loadCredentials();
-if (creds?.user?.email) {
+if (!quiet && creds?.user?.email) {
   console.log(`  ${neon.dim('Authenticated as:')} ${neon.cyan(creds.user.email)}`);
   console.log();
 }
@@ -302,26 +328,29 @@ if (!projectId) {
   currentPhase = 1;
   phaseName = 'Ideation';
 
-  console.log(neon.green(`  ═══ New Project: ${projectName} ═══`));
-  console.log(`  ${neon.dim('Tag:')} ${neon.cyan(projectTag)}`);
-  if (ideaSourceDetail) {
-    console.log(`  ${neon.dim('Source:')} ${neon.dim(ideaSourceDetail)}`);
+  if (!quiet) {
+    console.log(neon.green(`  ═══ New Project: ${projectName} ═══`));
+    console.log(`  ${neon.dim('Tag:')} ${neon.cyan(projectTag)}`);
+    if (ideaSourceDetail) {
+      console.log(`  ${neon.dim('Source:')} ${neon.dim(ideaSourceDetail)}`);
+    }
+    console.log();
   }
-  console.log();
 
   if (online) {
     try {
-      const spinner = ora({ text: 'Creating project on marketplace...', color: 'cyan' }).start();
+      let spinner;
+      if (!quiet) spinner = ora({ text: 'Creating project on marketplace...', color: 'cyan' }).start();
       const createData = { name: projectName, tag: projectTag, ideaSource, ideaSourceDetail };
       if (projectDescription) createData.description = projectDescription;
       const project = await createProject(createData);
       projectId = project.id;
-      spinner.succeed(neon.green('Project registered on marketplace'));
+      if (spinner) spinner.succeed(neon.green('Project registered on marketplace'));
     } catch (err) {
-      console.log(`  ${tag.error} ${neon.red('Failed to create project:')} ${err.message}`);
+      if (!quiet) console.log(`  ${tag.error} ${neon.red('Failed to create project:')} ${err.message}`);
     }
   }
-  console.log();
+  if (!quiet) console.log();
 
   const buildId = projectId || `local-${Date.now()}`;
   projectDir = join(homedir(), '.alba', 'builds', buildId);
@@ -330,8 +359,10 @@ if (!projectId) {
 
 // ── Output for Claude Code ─────────────────────────────
 
-console.log(`  ${tag.system} ${neon.green('Setup complete. Starting build pipeline...')}`);
-console.log();
+if (!quiet) {
+  console.log(`  ${tag.system} ${neon.green('Setup complete. Starting build pipeline...')}`);
+  console.log();
+}
 
 // Structured output for SKILL.md to parse — sent via stderr so it's
 // captured by Claude Code but not shown prominently to the user.
