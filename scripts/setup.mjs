@@ -5,7 +5,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { execSync } from 'child_process';
 import { neon, tag } from '../lib/colors.mjs';
-import { checkHealth, createProject, listProjects, joinProject, getArtifacts, downloadProjectZip } from '../lib/api.mjs';
+import { checkHealth, createProject, claimNextProject, getArtifacts, downloadProjectZip } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
 import { randomProjectName, randomTag, getIdeaSource, generateDiverseIdea } from '../lib/project-names.mjs';
@@ -157,100 +157,72 @@ async function tryAutoJoin() {
   let spinner;
   if (!quiet) spinner = ora({ text: 'Looking for building projects to join...', color: 'cyan' }).start();
 
-  let projects;
+  let claim;
   try {
-    const all = await listProjects();
-    projects = all.filter((p) => p.status === 'building');
+    claim = await claimNextProject();
   } catch (err) {
-    if (spinner) spinner.fail(neon.yellow(`Failed to list projects: ${err.message}`));
+    if (spinner) spinner.fail(neon.yellow(`Failed to claim project: ${err.message}`));
     return null;
   }
 
-  if (projects.length === 0) {
+  if (!claim) {
     if (spinner) spinner.info(neon.dim('No building projects available — creating new project'));
     return null;
   }
 
-  if (spinner) spinner.succeed(neon.green(`Found ${projects.length} building project(s)`));
+  const { projectId, projectName, projectTag, currentPhase, phaseName } = claim;
+  if (spinner) spinner.succeed(neon.green(`Joined "${projectName}" — Phase ${currentPhase}: ${phaseName}`));
 
-  // Try joining each project
-  for (const project of projects) {
-    const phaseName = PHASE_NAMES[project.currentPhase] || 'Unknown';
-    let joinSpinner;
-    if (!quiet) {
-      joinSpinner = ora({
-        text: `Joining "${project.name}" (Phase ${project.currentPhase}: ${phaseName})...`,
-        color: 'cyan',
-      }).start();
+  // Create local build directory
+  const projectDir = join(homedir(), '.alba', 'builds', projectId);
+  mkdirSync(projectDir, { recursive: true });
+
+  // Download artifacts
+  let dlSpinner;
+  if (!quiet) dlSpinner = ora({ text: 'Downloading project artifacts...', color: 'cyan' }).start();
+  try {
+    const artifacts = await getArtifacts(projectId);
+    let artifactCount = 0;
+    for (const [filename, content] of Object.entries(artifacts)) {
+      writeFileSync(join(projectDir, filename), content, 'utf-8');
+      artifactCount++;
+    }
+    if (artifactCount > 0) {
+      if (dlSpinner) dlSpinner.succeed(neon.green(`Downloaded ${artifactCount} artifact(s): ${Object.keys(artifacts).join(', ')}`));
+    } else {
+      if (dlSpinner) dlSpinner.info(neon.dim('No artifacts uploaded yet'));
     }
 
-    try {
-      const joinResult = await joinProject(project.id);
-      if (joinSpinner) joinSpinner.succeed(neon.green(`Joined "${project.name}" — Phase ${joinResult.currentPhase}: ${joinResult.phaseName}`));
-
-      // Create local build directory
-      const projectDir = join(homedir(), '.alba', 'builds', project.id);
-      mkdirSync(projectDir, { recursive: true });
-
-      const currentPhase = joinResult.currentPhase;
-
-      // Download artifacts
-      let dlSpinner;
-      if (!quiet) dlSpinner = ora({ text: 'Downloading project artifacts...', color: 'cyan' }).start();
+    // Phase 4+: also download full source code
+    if (currentPhase >= 4) {
+      let srcSpinner;
+      if (!quiet) srcSpinner = ora({ text: 'Downloading source code...', color: 'cyan' }).start();
       try {
-        const artifacts = await getArtifacts(project.id);
-        let artifactCount = 0;
-        for (const [filename, content] of Object.entries(artifacts)) {
-          writeFileSync(join(projectDir, filename), content, 'utf-8');
-          artifactCount++;
-        }
-        if (artifactCount > 0) {
-          if (dlSpinner) dlSpinner.succeed(neon.green(`Downloaded ${artifactCount} artifact(s): ${Object.keys(artifacts).join(', ')}`));
+        const zipBuffer = await downloadProjectZip(projectId);
+        if (zipBuffer) {
+          const zipPath = join(projectDir, '..', `${projectId}-download.zip`);
+          writeFileSync(zipPath, zipBuffer);
+          execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
+          if (srcSpinner) srcSpinner.succeed(neon.green(`Source code extracted (${(zipBuffer.length / 1024).toFixed(0)} KB)`));
         } else {
-          if (dlSpinner) dlSpinner.info(neon.dim('No artifacts uploaded yet'));
-        }
-
-        // Phase 4+: also download full source code
-        if (currentPhase >= 4) {
-          let srcSpinner;
-          if (!quiet) srcSpinner = ora({ text: 'Downloading source code...', color: 'cyan' }).start();
-          try {
-            const zipBuffer = await downloadProjectZip(project.id);
-            if (zipBuffer) {
-              const zipPath = join(projectDir, '..', `${project.id}-download.zip`);
-              writeFileSync(zipPath, zipBuffer);
-              execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
-              if (srcSpinner) srcSpinner.succeed(neon.green(`Source code extracted (${(zipBuffer.length / 1024).toFixed(0)} KB)`));
-            } else {
-              if (srcSpinner) srcSpinner.info(neon.dim('No source code uploaded yet'));
-            }
-          } catch (err) {
-            if (srcSpinner) srcSpinner.warn(neon.yellow(`Source download failed: ${err.message || 'unknown'}`));
-          }
+          if (srcSpinner) srcSpinner.info(neon.dim('No source code uploaded yet'));
         }
       } catch (err) {
-        if (dlSpinner) dlSpinner.warn(neon.yellow(`Artifact download failed: ${err.message || 'unknown'}`));
-      }
-
-      return {
-        projectId: project.id,
-        projectName: project.name,
-        projectTag: project.tag || '',
-        projectDir,
-        currentPhase,
-        phaseName: joinResult.phaseName,
-      };
-    } catch (err) {
-      if (err.message && err.message.includes('409')) {
-        if (joinSpinner) joinSpinner.warn(neon.dim(`Already contributed to "${project.name}" — skipping`));
-      } else {
-        if (joinSpinner) joinSpinner.warn(neon.yellow(`Failed to join "${project.name}": ${err.message}`));
+        if (srcSpinner) srcSpinner.warn(neon.yellow(`Source download failed: ${err.message || 'unknown'}`));
       }
     }
+  } catch (err) {
+    if (dlSpinner) dlSpinner.warn(neon.yellow(`Artifact download failed: ${err.message || 'unknown'}`));
   }
 
-  if (!quiet) console.log(`  ${neon.dim('All building projects skipped — creating new project')}`);
-  return null;
+  return {
+    projectId,
+    projectName,
+    projectTag: projectTag || '',
+    projectDir,
+    currentPhase,
+    phaseName,
+  };
 }
 
 // ── Main ─────────────────────────────────────────────────
