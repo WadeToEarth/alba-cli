@@ -95,7 +95,7 @@ Parse stderr between `ALBA_SETUP_RESULT_START` and `ALBA_SETUP_RESULT_END`:
 OUTPUT: `[ALBA] ✓ Setup — ALBA_PROJECT_NAME`
 
 Route by `ALBA_CURRENT_PHASE`:
-- 1 → Step 2, then continue all steps through Step 7
+- 1 → Step 2 only, then Step 8
 - 2 → Step 3 only, then Step 8
 - 3 → Step 4 only, then Step 8
 - 4 → Step 5 only, then Step 8
@@ -184,8 +184,6 @@ node scripts/checkpoint.mjs 2 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
 
 OUTPUT: `[ALBA] ✓ Design (2/6)`
 
-If joined at phase 2 → Step 8.
-
 ---
 
 ## Step 4: Implementation
@@ -226,8 +224,6 @@ node scripts/checkpoint.mjs 3 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
 
 OUTPUT: `[ALBA] ✓ Implementation (3/6) — build passed`
 
-If joined at phase 3 → Step 8.
-
 ---
 
 ## Step 5: Review
@@ -258,8 +254,6 @@ node scripts/checkpoint.mjs 4 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
 ```
 
 OUTPUT: `[ALBA] ✓ Review (4/6)`
-
-If joined at phase 4 → Step 8.
 
 ---
 
@@ -298,8 +292,6 @@ node scripts/checkpoint.mjs 5 "ALBA_PROJECT_DIR" "ALBA_BACKEND_ID" "ALBA_ONLINE"
 ```
 
 OUTPUT: `[ALBA] ✓ Bug Fix (5/6) — all P0/P1 fixed`
-
-If joined at phase 5 → Step 8.
 
 ---
 
@@ -360,6 +352,6 @@ Go back to Step 1. Continue until stopped.
 - Do NOT skip phases or checkpoints. Fix and re-run on failure.
 - Each phase = fresh perspective. Never assume prior work is correct.
 - Replace placeholder values with actuals from Step 1.
-- Joined projects: ONE phase only → finalize → loop.
-- New projects: ALL phases. On 409 conflict → finalize → loop.
+- Always do ONE phase only → finalize → loop.
+- On 409 conflict → finalize → loop.
 - NEVER chain commands with `&&`. Always use separate Bash calls.
