@@ -9,13 +9,15 @@ import { PHASES, getTaskReward } from '../lib/phases.mjs';
 
 // ── Parse arguments ──────────────────────────────────────
 const args = process.argv.slice(2);
-const phaseNumber = parseInt(args[0], 10);
-const projectDir = args[1];
-const projectId = args[2] || '';
-const online = args[3] === 'true';
+const quiet = args.includes('--quiet');
+const positional = args.filter(a => !a.startsWith('--'));
+const phaseNumber = parseInt(positional[0], 10);
+const projectDir = positional[1];
+const projectId = positional[2] || '';
+const online = positional[3] === 'true';
 
 if (!phaseNumber || !projectDir) {
-  console.log(`  ${tag.error} ${neon.red('Usage: node checkpoint.mjs <phase> <projectDir> [projectId] [online]')}`);
+  console.log(`  ${tag.error} ${neon.red('Usage: node checkpoint.mjs <phase> <projectDir> [projectId] [online] [--quiet]')}`);
   process.exit(1);
 }
 
@@ -127,21 +129,26 @@ if (!phaseData) {
   process.exit(1);
 }
 
-console.log();
-console.log(`  ${tag.phase} ${neon.magenta(`═══ Checkpoint: Phase ${phaseNumber} — ${phaseData.label} ═══`)}`);
+if (!quiet) {
+  console.log();
+  console.log(`  ${tag.phase} ${neon.magenta(`═══ Checkpoint: Phase ${phaseNumber} — ${phaseData.label} ═══`)}`);
+}
 
 const validator = validators[phaseNumber];
 const error = validator ? validator() : null;
 
 if (error) {
+  // Always show validation errors — agent needs to read and fix them
   console.log(`  ${tag.error} ${neon.red('Validation FAILED:')}`);
   console.log(`  ${neon.red(error)}`);
-  console.log();
-  console.log(`  ${neon.yellow('Fix the issues above and re-run this checkpoint.')}`);
+  if (!quiet) {
+    console.log();
+    console.log(`  ${neon.yellow('Fix the issues above and re-run this checkpoint.')}`);
+  }
   process.exit(1);
 }
 
-console.log(`  ${tag.phase} ${neon.green('✓ Artifacts validated')}`);
+if (!quiet) console.log(`  ${tag.phase} ${neon.green('✓ Artifacts validated')}`);
 
 // ── Upload phase artifacts to backend ───────────────────
 
@@ -158,9 +165,9 @@ if (online && projectId && PHASE_ARTIFACTS[phaseNumber]) {
       try {
         const content = readFileSync(filePath, 'utf-8');
         await saveArtifact(projectId, filename, content);
-        console.log(`  ${tag.task} ${neon.green('✓')} ${neon.dim(`Uploaded ${filename} (${(content.length / 1024).toFixed(1)} KB)`)}`);
+        if (!quiet) console.log(`  ${tag.task} ${neon.green('✓')} ${neon.dim(`Uploaded ${filename} (${(content.length / 1024).toFixed(1)} KB)`)}`);
       } catch (err) {
-        console.log(`  ${tag.error} ${neon.yellow(`Failed to upload ${filename}:`)} ${neon.dim(err.message || 'unknown')}`);
+        if (!quiet) console.log(`  ${tag.error} ${neon.yellow(`Failed to upload ${filename}:`)} ${neon.dim(err.message || 'unknown')}`);
       }
     }
   }
@@ -181,7 +188,7 @@ for (const taskDef of phaseData.tasks) {
       });
     } catch {}
   }
-  console.log(`  ${tag.task} ${neon.green('✓')} ${neon.dim(taskDef.name)}`);
+  if (!quiet) console.log(`  ${tag.task} ${neon.green('✓')} ${neon.dim(taskDef.name)}`);
 }
 
 // ── Phase 6: upload preview before advancing to "listed" ─
@@ -198,12 +205,12 @@ if (phaseNumber === 6 && online && projectId) {
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ previewHtml: previewContent }),
         });
-        if (res.ok) {
+        if (!quiet && res.ok) {
           console.log(`  ${tag.build} ${neon.green('✓')} ${neon.dim('Preview uploaded')}`);
         }
       }
     } catch (err) {
-      console.log(`  ${tag.error} ${neon.yellow('Preview upload failed:')} ${neon.dim(err.message || 'unknown')}`);
+      if (!quiet) console.log(`  ${tag.error} ${neon.yellow('Preview upload failed:')} ${neon.dim(err.message || 'unknown')}`);
     }
   }
 }
@@ -213,18 +220,22 @@ if (phaseNumber === 6 && online && projectId) {
 if (online && projectId) {
   try {
     await advancePhase(projectId, phaseNumber + 1);
-    if (phaseNumber === 6) {
-      console.log(`  ${tag.phase} ${neon.green('Project listed on marketplace')}`);
-    } else {
-      console.log(`  ${tag.phase} ${neon.green(`Advanced to phase ${phaseNumber + 1}`)}`);
+    if (!quiet) {
+      if (phaseNumber === 6) {
+        console.log(`  ${tag.phase} ${neon.green('Project listed on marketplace')}`);
+      } else {
+        console.log(`  ${tag.phase} ${neon.green(`Advanced to phase ${phaseNumber + 1}`)}`);
+      }
     }
   } catch (err) {
-    console.log(`  ${tag.error} ${neon.yellow(`Phase advance failed: ${err.message}`)}`);
+    if (!quiet) console.log(`  ${tag.error} ${neon.yellow(`Phase advance failed: ${err.message}`)}`);
   }
 }
 
-console.log(`  ${tag.phase} ${neon.dim(`Phase ${phaseNumber} complete`)}`);
-console.log();
+if (!quiet) {
+  console.log(`  ${tag.phase} ${neon.dim(`Phase ${phaseNumber} complete`)}`);
+  console.log();
+}
 
 // Structured output for SKILL.md to parse
 process.stderr.write(`ALBA_CHECKPOINT_PHASE=${phaseNumber}\n`);

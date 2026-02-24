@@ -8,13 +8,15 @@ import { API_BASE_URL } from '../lib/config.mjs';
 // ── Parse arguments ──────────────────────────────────────
 
 const args = process.argv.slice(2);
-const projectDir = args[0];
-const projectName = args[1] || 'Project';
-const backendProjectId = args[2] || '';
-const online = args[3] === 'true';
+const quiet = args.includes('--quiet');
+const positional = args.filter(a => !a.startsWith('--'));
+const projectDir = positional[0];
+const projectName = positional[1] || 'Project';
+const backendProjectId = positional[2] || '';
+const online = positional[3] === 'true';
 
 if (!projectDir) {
-  console.log(`  ${tag.error} ${neon.red('Usage: node finalize.mjs <projectDir> <projectName> [backendProjectId] [online]')}`);
+  console.log(`  ${tag.error} ${neon.red('Usage: node finalize.mjs <projectDir> <projectName> [backendProjectId] [online] [--quiet]')}`);
   process.exit(1);
 }
 
@@ -27,8 +29,10 @@ const projectId = backendProjectId || null;
 
 // ── Upload preview.html ─────────────────────────────────
 
-console.log();
-console.log(`  ${tag.phase} ${neon.magenta('═══ Finalize: Upload & Package ═══')}`);
+if (!quiet) {
+  console.log();
+  console.log(`  ${tag.phase} ${neon.magenta('═══ Finalize: Upload & Package ═══')}`);
+}
 
 const previewPath = join(projectDir, 'preview.html');
 if (online && projectId && existsSync(previewPath)) {
@@ -36,22 +40,22 @@ if (online && projectId && existsSync(previewPath)) {
     const previewHtml = readFileSync(previewPath, 'utf-8');
     const token = await getValidToken();
     if (token) {
-      console.log(`  ${tag.build} ${neon.cyan('Uploading demo preview...')}`);
+      if (!quiet) console.log(`  ${tag.build} ${neon.cyan('Uploading demo preview...')}`);
       const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/preview`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ previewHtml }),
       });
       if (res.ok) {
-        console.log(`  ${tag.build} ${neon.green('✓')} ${neon.dim(`Preview uploaded (${(previewHtml.length / 1024).toFixed(1)} KB)`)}`);
+        if (!quiet) console.log(`  ${tag.build} ${neon.green('✓')} ${neon.dim(`Preview uploaded (${(previewHtml.length / 1024).toFixed(1)} KB)`)}`);
       } else {
-        console.log(`  ${tag.error} ${neon.yellow(`Preview upload failed: HTTP ${res.status}`)}`);
+        if (!quiet) console.log(`  ${tag.error} ${neon.yellow(`Preview upload failed: HTTP ${res.status}`)}`);
       }
     }
   } catch (err) {
-    console.log(`  ${tag.error} ${neon.yellow('Preview upload error:')} ${neon.dim(err.message || 'unknown')}`);
+    if (!quiet) console.log(`  ${tag.error} ${neon.yellow('Preview upload error:')} ${neon.dim(err.message || 'unknown')}`);
   }
-} else if (!existsSync(previewPath)) {
+} else if (!quiet && !existsSync(previewPath)) {
   console.log(`  ${tag.system} ${neon.dim('No preview.html found — skipping preview upload')}`);
 }
 
@@ -60,14 +64,14 @@ if (online && projectId && existsSync(previewPath)) {
 if (online && projectId) {
   try {
     const zipPath = join(projectDir, '..', `${projectId}.zip`);
-    console.log(`  ${tag.build} ${neon.cyan('Packaging source code...')}`);
+    if (!quiet) console.log(`  ${tag.build} ${neon.cyan('Packaging source code...')}`);
     execSync(
       `cd "${projectDir}" && zip -r "${zipPath}" . -x "node_modules/*" ".next/*" 2>/dev/null`,
       { timeout: 30000 }
     );
 
     const stats = statSync(zipPath);
-    console.log(`  ${tag.build} ${neon.dim(`ZIP: ${(stats.size / 1024).toFixed(0)} KB`)}`);
+    if (!quiet) console.log(`  ${tag.build} ${neon.dim(`ZIP: ${(stats.size / 1024).toFixed(0)} KB`)}`);
 
     const token = await getValidToken();
     if (token) {
@@ -82,24 +86,26 @@ if (online && projectId) {
       });
 
       if (res.ok) {
-        console.log(`  ${tag.build} ${neon.green('✓')} ${neon.dim('Source code uploaded')}`);
+        if (!quiet) console.log(`  ${tag.build} ${neon.green('✓')} ${neon.dim('Source code uploaded')}`);
       } else {
-        console.log(`  ${tag.error} ${neon.yellow(`Upload failed: HTTP ${res.status}`)}`);
+        if (!quiet) console.log(`  ${tag.error} ${neon.yellow(`Upload failed: HTTP ${res.status}`)}`);
       }
     }
   } catch (err) {
-    console.log(`  ${tag.error} ${neon.yellow('Package/upload error:')} ${neon.dim(err.message || 'unknown')}`);
+    if (!quiet) console.log(`  ${tag.error} ${neon.yellow('Package/upload error:')} ${neon.dim(err.message || 'unknown')}`);
   }
 }
 
 // ── Summary ──────────────────────────────────────────────
 
-console.log();
-console.log(neon.green(`  ═══ Project "${projectName}" listed on marketplace ═══`));
-console.log(`  ${neon.dim('Build directory:')} ${neon.dim(projectDir)}`);
-if (projectId) {
-  console.log(`  ${neon.dim('Project ID:')} ${neon.dim(projectId)}`);
+if (!quiet) {
+  console.log();
+  console.log(neon.green(`  ═══ Project "${projectName}" listed on marketplace ═══`));
+  console.log(`  ${neon.dim('Build directory:')} ${neon.dim(projectDir)}`);
+  if (projectId) {
+    console.log(`  ${neon.dim('Project ID:')} ${neon.dim(projectId)}`);
+  }
+  console.log();
+  console.log(`  ${neon.dim('Thank you for using ALBA.')}`);
+  console.log();
 }
-console.log();
-console.log(`  ${neon.dim('Thank you for using ALBA.')}`);
-console.log();
