@@ -127,7 +127,15 @@ Do NOT use the project name from setup. Instead, generate a truly original produ
    - **Tagline**: Write a one-line catchphrase (max 120 chars) that conveys the product's core value (e.g. "Track ocean health in real-time with satellite-powered reef analytics")
    - **SVG Icon**: Design a simple monochrome icon — `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` with 2-3 paths max. Keep it under 1KB.
 
-4. **Update the project** with your idea (separate Bash calls):
+4b. **Choose a unique color palette** that reflects the product's domain:
+   - Pick a primary accent and secondary accent that feel native to the domain
+     (e.g. Ocean → blues/teals, Biotech → greens/purples, Music → warm oranges/magentas,
+      Fashion → soft pinks/golds, Finance → navy/emerald, Space → deep purples/silvers)
+   - Background: dark (#09090b) OR domain-appropriate dark shade
+   - Record the palette in SPEC.md Architecture section as "Color Palette: primary #hex, secondary #hex"
+   - Do NOT default to #22c55e/#00ffff — every project should look visually distinct
+
+4c. **Update the project** with your idea (separate Bash calls):
 ```bash
 cd ${CLAUDE_PLUGIN_ROOT}
 ```
@@ -165,7 +173,7 @@ OUTPUT: `[ALBA] ▶ Design (2/6)`
 ### Goal
 A design document detailed enough that a developer can implement without asking design questions.
 
-Read SPEC.md completely (fresh eyes). Write `DESIGN.md` with: Component Detail Spec (props, state, methods), UI/UX Layout (responsive, dark #09090b, accents #22c55e/#00ffff), State Management & Data Flow, Edge Cases.
+Read SPEC.md completely (fresh eyes). Write `DESIGN.md` with: Component Detail Spec (props, state, methods), UI/UX Layout (responsive, dark theme, use the color palette defined in SPEC.md — NOT the default green/cyan), State Management & Data Flow, Edge Cases.
 
 ### Success Criteria
 1. DESIGN.md has 4 sections: Components, UI/UX, State Management, Edge Cases
@@ -200,7 +208,7 @@ Read SPEC.md + DESIGN.md (fresh eyes — you did NOT write these). Scaffold Next
 ### Success Criteria
 1. `npm run build` passes with zero errors
 2. ALL features from SPEC.md are implemented (not just some)
-3. UI matches DESIGN.md layout and color scheme
+3. UI matches DESIGN.md layout and uses the project's unique color palette from SPEC.md
 4. No placeholder text or TODO comments in shipped code
 
 ### Self-verify before checkpoint
@@ -304,7 +312,7 @@ OUTPUT: `[ALBA] ▶ Demo (6/6) — creating preview...`
 ### Goal
 A self-contained preview.html that showcases ALL features with working interactivity.
 
-Read SPEC.md + source (fresh eyes). Create `preview.html`: single file, all CSS/JS inlined, no external resources, dark theme (#09090b), neon accents, under 50KB, showcase all features with interactivity.
+Read SPEC.md + source (fresh eyes). Create `preview.html`: single file, all CSS/JS inlined, no external resources, use the project's color palette from SPEC.md (dark background + domain accents), under 50KB, showcase all features with interactivity.
 
 ### Success Criteria
 1. preview.html is a single self-contained file
@@ -312,7 +320,7 @@ Read SPEC.md + source (fresh eyes). Create `preview.html`: single file, all CSS/
 3. File size under 50KB
 4. ALL features from SPEC.md are showcased (not just a landing page)
 5. Interactive elements actually work (clicks, inputs, transitions)
-6. Dark theme with #09090b background, #22c55e/#00ffff accents
+6. Uses the project's unique color palette from SPEC.md (NOT default green/cyan for every project)
 
 ### Self-verify before checkpoint
 - Does preview.html showcase ALL features from SPEC.md? Check each one.
