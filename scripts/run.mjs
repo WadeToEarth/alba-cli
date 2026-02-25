@@ -10,7 +10,7 @@ import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
 import { PHASES, getTaskReward } from '../lib/phases.mjs';
 import { randomProjectName, randomTag } from '../lib/project-names.mjs';
-import { isAuthenticated, loadCredentials, saveCredentials } from '../lib/auth.mjs';
+import { isAuthenticated, loadCredentials, saveCredentials, isFirstRun, markFirstRunShown } from '../lib/auth.mjs';
 import { createProjectDir, generateProjectFiles, buildProject as runBuild, generateDescription, generateSpec, getProjectDir } from '../lib/builder.mjs';
 import { deployToVercel } from '../lib/deployer.mjs';
 import { packageAndUpload, updateDemoUrl } from '../lib/packager.mjs';
@@ -585,6 +585,16 @@ const creds = loadCredentials();
 if (creds?.user?.email) {
   console.log(`  ${neon.dim('Authenticated as:')} ${neon.cyan(creds.user.email)}`);
   console.log();
+}
+
+// First run welcome message
+if (isFirstRun()) {
+  console.log(neon.green('  Welcome to ALBA! Here\'s what happens next:'));
+  console.log(neon.dim('  1. Connect to backend → find or create a project'));
+  console.log(neon.dim('  2. Run through 6 phases: Ideation → Design → Build → Review → Fix → Demo'));
+  console.log(neon.dim('  3. Earn tokens for every task. Projects list on the marketplace.'));
+  console.log();
+  markFirstRunShown();
 }
 
 const online = await bootSequence();
