@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'fs';
 import { execSync } from 'child_process';
 import { join } from 'path';
+import { Script } from 'node:vm';
 import { neon, tag } from '../lib/colors.mjs';
 import { recordTask, advancePhase, saveArtifact } from '../lib/api.mjs';
 import { getValidToken } from '../lib/auth.mjs';
@@ -109,6 +110,22 @@ function validatePhase6() {
   if (stats.size > 50 * 1024) {
     return `preview.html is ${(stats.size / 1024).toFixed(1)} KB — must be under 50KB`;
   }
+
+  // JS syntax validation — catch SyntaxErrors before upload
+  const html = readFileSync(previewPath, 'utf-8');
+  const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+  let match;
+  while ((match = scriptRegex.exec(html)) !== null) {
+    const code = match[1].trim();
+    if (!code) continue;
+    try {
+      new Script(code);
+    } catch (err) {
+      const lineInfo = err.message || 'unknown error';
+      return `preview.html JavaScript syntax error: ${lineInfo}`;
+    }
+  }
+
   return null;
 }
 

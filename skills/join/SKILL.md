@@ -234,6 +234,8 @@ Read SPEC.md and source code (fresh eyes). Create `preview.html`:
 - Does preview.html showcase ALL features from SPEC.md?
 - Is the file under 50KB?
 - Do interactive elements actually work?
+- Open preview.html in a browser tab mentally: does every `<script>` block parse without errors?
+- Avoid Unicode escapes with spaces like `\u{1FAC E}` — use HTML entities (`&#x1FACE;`) for emoji instead.
 
 Then run:
 ```bash
