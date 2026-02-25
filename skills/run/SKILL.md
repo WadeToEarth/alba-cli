@@ -121,16 +121,18 @@ Do NOT use the project name from setup. Instead, generate a truly original produ
 2. **WebSearch** for recent news/trends in that domain (e.g. "latest {domain} startups 2025 2026", "{domain} innovative tools")
 
 3. **Invent a specific, creative product** inspired by your research. It should be:
-   - Specific (not generic like "Todo App" — more like "Coral Reef Health Monitor" or "ASL Learning Companion")
+   - **Distinctive brand name**: Create a short, memorable name inspired by the domain (e.g. "Coral Reef Health Monitor" → "ReefPulse", "ASL Learning Companion" → "SignFlow"). Not generic like "Todo App".
    - Buildable as a web micro-MVP with Next.js
    - Something that would impress on a marketplace
+   - **Tagline**: Write a one-line catchphrase (max 120 chars) that conveys the product's core value (e.g. "Track ocean health in real-time with satellite-powered reef analytics")
+   - **SVG Icon**: Design a simple monochrome icon — `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` with 2-3 paths max. Keep it under 1KB.
 
 4. **Update the project** with your idea (separate Bash calls):
 ```bash
 cd ${CLAUDE_PLUGIN_ROOT}
 ```
 ```bash
-node scripts/update-idea.mjs "ALBA_BACKEND_ID" "YOUR_PRODUCT_NAME" "DOMAIN_TAG" "One-line description" "ai-generated" "Inspired by {domain} trend: {specific insight}" --quiet
+node scripts/update-idea.mjs "ALBA_BACKEND_ID" "YOUR_PRODUCT_NAME" "DOMAIN_TAG" "One-line description" "ai-generated" "Inspired by {domain} trend: {specific insight}" --icon '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">YOUR_PATHS</svg>' --tagline "Your catchy tagline here" --quiet
 ```
 
 OUTPUT: `[ALBA] ✓ Ideation (1/6) — "YOUR_PRODUCT_NAME"`
