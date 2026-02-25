@@ -137,10 +137,10 @@ node scripts/update-idea.mjs "ALBA_BACKEND_ID" "YOUR_PRODUCT_NAME" "DOMAIN_TAG" 
 
 OUTPUT: `[ALBA] ✓ Ideation (1/6) — "YOUR_PRODUCT_NAME"`
 
-5. Write `SPEC.md` with: Concept (why this matters, target users), Features (3-5 with acceptance criteria), Architecture (file tree, tech: Next.js 14, React 18, Tailwind), Contribution Assessment.
+5. Write `SPEC.md` with: Concept (why this matters, target users), Features (3-5 with acceptance criteria), Architecture (file tree, tech: Next.js 14, React 18, Tailwind), Infrastructure Requirements (database type, hosting requirements, environment variables, third-party services needed for production), Contribution Assessment.
 
 ### Success Criteria
-1. SPEC.md exists with 4 sections: Concept, Features, Architecture, Contribution
+1. SPEC.md exists with 5 sections: Concept, Features, Architecture, Infrastructure, Contribution
 2. Each section has substantive content (not placeholder text)
 3. Features have testable acceptance criteria
 4. Architecture includes a file tree
