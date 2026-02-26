@@ -145,13 +145,51 @@ node scripts/update-idea.mjs "ALBA_BACKEND_ID" "YOUR_PRODUCT_NAME" "DOMAIN_TAG" 
 
 OUTPUT: `[ALBA] ✓ Ideation (1/6) — "YOUR_PRODUCT_NAME"`
 
-5. Write `SPEC.md` with: Concept (why this matters, target users), Features (3-5 with acceptance criteria), Architecture (file tree, tech: Next.js 14, React 18, Tailwind), Infrastructure Requirements (database type, hosting requirements, environment variables, third-party services needed for production), Contribution Assessment.
+5. Write `SPEC.md` using this structured template:
+
+```markdown
+## Concept
+- Problem statement: what pain point does this solve?
+- Target User persona: who uses this and why? (~100+ words total)
+- Why It Matters: market context or user impact
+
+## Features
+### F1: {Feature Name}
+- Description of the feature
+- Acceptance Criteria:
+  - "User can X → sees Y"
+  - "User can A → sees B"
+(Repeat for F2, F3, etc. — at least 3 features, each with 2+ acceptance criteria)
+
+## Architecture
+- Tech Stack: Next.js 14, React 18, Tailwind CSS 3
+- Color Palette: primary #hex, secondary #hex, background #hex
+- File Tree:
+  ├── app/
+  │   ├── page.tsx
+  │   ├── layout.tsx
+  │   └── components/
+  │       ├── ComponentName.tsx
+  │       └── ...
+- Data Model: key entities and their relationships
+
+## Infrastructure
+- Hosting target (e.g., Vercel)
+- Database type (if any)
+- Environment variables needed
+- Third-party services / APIs
+
+## Contribution Assessment
+- Feature weights (which features carry the most value)
+- Success metrics (how to measure if the product works)
+```
 
 ### Success Criteria
 1. SPEC.md exists with 5 sections: Concept, Features, Architecture, Infrastructure, Contribution
-2. Each section has substantive content (not placeholder text)
-3. Features have testable acceptance criteria
-4. Architecture includes a file tree
+2. Each section is 100+ characters of substantive content (not placeholder text)
+3. Features have "User can X → sees Y" acceptance criteria (2+ per feature)
+4. Architecture includes file tree with actual component names AND 2+ hex color codes
+5. Infrastructure section covers hosting, env vars, and any third-party services
 
 ### Self-verify before checkpoint
 - Read your SPEC.md back. Would a developer know exactly what to build?
@@ -173,13 +211,54 @@ OUTPUT: `[ALBA] ▶ Design (2/6)`
 ### Goal
 A design document detailed enough that a developer can implement without asking design questions.
 
-Read SPEC.md completely (fresh eyes). Write `DESIGN.md` with: Component Detail Spec (props, state, methods), UI/UX Layout (responsive, dark theme, use the color palette defined in SPEC.md — NOT the default green/cyan), State Management & Data Flow, Edge Cases.
+Read SPEC.md completely (fresh eyes). Write `DESIGN.md` using this structured template:
+
+```markdown
+## Component Hierarchy
+app/
+├── layout.tsx — root layout
+├── page.tsx — main page
+└── components/
+    ├── ComponentA.tsx
+    ├── ComponentB.tsx
+    └── ...
+
+## Component Specifications
+### ComponentA
+- **Props**: `{ propName: type, ... }`
+- **State**: `{ stateName: type, ... }`
+- **Handlers**: `onAction() → updates state / calls API`
+- **Renders**: description of what this component renders
+
+(Repeat for each component)
+
+## UI/UX Layout
+- Overall layout: flex/grid, spacing in px/rem
+- Responsive breakpoints: sm (640px), md (768px), lg (1024px)
+- Color references: use hex codes from SPEC.md palette (primary #hex, secondary #hex)
+- Dark theme: background #hex from SPEC.md
+- Typography: font sizes, weights
+
+## State Management
+- State shape: `{ key: type, ... }`
+- State ownership: which component owns which state
+- Data flow: parent → child props, callbacks, context if needed
+
+## Edge Cases
+| Scenario | Behavior |
+|----------|----------|
+| Empty state | what to show when no data |
+| Loading | skeleton / spinner / placeholder |
+| Error | error message, retry option |
+| Overflow | truncation, scrolling, pagination |
+```
 
 ### Success Criteria
 1. DESIGN.md has 4 sections: Components, UI/UX, State Management, Edge Cases
-2. Every component has defined props, state, and methods
-3. Layout descriptions are specific enough to implement (not "looks nice")
-4. Edge cases cover empty states, errors, and loading
+2. Every component has defined props, state, and handlers
+3. Layout uses specific values (px/rem, flex/grid, breakpoints sm/md/lg)
+4. Color hex codes from SPEC.md palette are referenced (NOT default green/cyan)
+5. Edge cases cover empty, loading, and error states
 
 ### Self-verify before checkpoint
 - Read your DESIGN.md back. Could a developer implement this without design questions?
@@ -312,7 +391,33 @@ OUTPUT: `[ALBA] ▶ Demo (6/6) — creating preview...`
 ### Goal
 A self-contained preview.html that showcases ALL features with working interactivity.
 
-Read SPEC.md + source (fresh eyes). Create `preview.html`: single file, all CSS/JS inlined, no external resources, use the project's color palette from SPEC.md (dark background + domain accents), under 50KB, showcase all features with interactivity.
+Read SPEC.md + source (fresh eyes). Create `preview.html`: single file, all CSS/JS inlined, no external resources, under 50KB, showcase all features with interactivity.
+
+#### Design Concept Selection
+Pick ONE concept that fits the project domain — do NOT default to dark cards every time:
+
+| Concept | When to use | Key traits |
+|---------|-------------|------------|
+| **Bento Grid** | Dashboard / multi-feature products | Asymmetric grid, varied card sizes, mixed content types |
+| **Glassmorphism** | Premium / lifestyle / fintech | Semi-transparent panels, `backdrop-filter: blur()`, soft shadows |
+| **Gradient Mesh** | Creative / social / AI products | Vivid mesh gradient backgrounds, bold sans-serif type |
+| **Neubrutalism** | Dev tools / bold brands / playful products | Thick 3-4px borders, hard box-shadows, chunky color blocks |
+| **Editorial / Magazine** | Content-heavy / education / media | Large serif or display type, column layouts, generous whitespace |
+| **Retro / Pixel** | Gaming / nostalgia / fun products | Dot patterns, monospace fonts, 8-bit aesthetic, pixel borders |
+| **Organic / Soft** | Health / wellness / education / kids | Rounded blob shapes, pastel tones, wavy section dividers |
+
+#### Design Rules
+- Use the project's color palette from SPEC.md — NOT default #22c55e / #00ffff
+- Hero section must visually represent the core feature (not just text)
+- Use **at least 2 different section layouts** (e.g. hero + bento grid + feature cards — never all identical cards)
+- Include 1–2 CSS animations (hover effects, auto-playing transitions, or scroll-triggered)
+- Each preview.html must look distinct from other projects
+
+#### Banned Patterns (these repeat too often)
+- Entire page = uniform same-size card grid
+- Default dark background (#09090b) + neon green accent on everything
+- Every section has identical padding, identical structure
+- Feature list rendered as plain bullet points
 
 ### Success Criteria
 1. preview.html is a single self-contained file

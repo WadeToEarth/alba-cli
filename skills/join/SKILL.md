@@ -87,17 +87,54 @@ Based on `ALBA_CURRENT_PHASE`, execute the matching phase below.
 #### Goal
 A design document detailed enough that a developer can implement without asking design questions.
 
-Read SPEC.md from the project directory (fresh eyes). Write `DESIGN.md` with:
-- Component Detail Spec (name, purpose, props, state, methods)
-- UI/UX Layout (responsive, dark theme #09090b, accents #22c55e/#00ffff)
-- State Management & Data Flow
-- Edge Case Specification
+Read SPEC.md from the project directory (fresh eyes). Write `DESIGN.md` using this structured template:
+
+```markdown
+## Component Hierarchy
+app/
+├── layout.tsx — root layout
+├── page.tsx — main page
+└── components/
+    ├── ComponentA.tsx
+    ├── ComponentB.tsx
+    └── ...
+
+## Component Specifications
+### ComponentA
+- **Props**: `{ propName: type, ... }`
+- **State**: `{ stateName: type, ... }`
+- **Handlers**: `onAction() → updates state / calls API`
+- **Renders**: description of what this component renders
+
+(Repeat for each component)
+
+## UI/UX Layout
+- Overall layout: flex/grid, spacing in px/rem
+- Responsive breakpoints: sm (640px), md (768px), lg (1024px)
+- Color references: use hex codes from SPEC.md palette (NOT default #22c55e/#00ffff)
+- Dark theme: background from SPEC.md palette
+- Typography: font sizes, weights
+
+## State Management
+- State shape: `{ key: type, ... }`
+- State ownership: which component owns which state
+- Data flow: parent → child props, callbacks, context if needed
+
+## Edge Cases
+| Scenario | Behavior |
+|----------|----------|
+| Empty state | what to show when no data |
+| Loading | skeleton / spinner / placeholder |
+| Error | error message, retry option |
+| Overflow | truncation, scrolling, pagination |
+```
 
 #### Success Criteria
 1. DESIGN.md has 4 sections: Components, UI/UX, State Management, Edge Cases
-2. Every component has defined props, state, and methods
-3. Layout descriptions are specific enough to implement
-4. Edge cases cover empty states, errors, and loading
+2. Every component has defined props, state, and handlers
+3. Layout uses specific values (px/rem, flex/grid, breakpoints sm/md/lg)
+4. Color hex codes from SPEC.md palette are referenced (NOT default green/cyan)
+5. Edge cases cover empty, loading, and error states
 
 #### Self-verify before checkpoint
 - Read your DESIGN.md back. Could a developer implement this without design questions?
@@ -220,8 +257,33 @@ A self-contained preview.html that showcases ALL features with working interacti
 Read SPEC.md and source code (fresh eyes). Create `preview.html`:
 - Single HTML file, ALL CSS/JS inlined, no external resources
 - Showcase every feature with working interactivity
-- Dark theme (#09090b), neon accents (#22c55e, #00ffff)
 - Under 50KB
+
+#### Design Concept Selection
+Pick ONE concept that fits the project domain — do NOT default to dark cards every time:
+
+| Concept | When to use | Key traits |
+|---------|-------------|------------|
+| **Bento Grid** | Dashboard / multi-feature products | Asymmetric grid, varied card sizes, mixed content types |
+| **Glassmorphism** | Premium / lifestyle / fintech | Semi-transparent panels, `backdrop-filter: blur()`, soft shadows |
+| **Gradient Mesh** | Creative / social / AI products | Vivid mesh gradient backgrounds, bold sans-serif type |
+| **Neubrutalism** | Dev tools / bold brands / playful products | Thick 3-4px borders, hard box-shadows, chunky color blocks |
+| **Editorial / Magazine** | Content-heavy / education / media | Large serif or display type, column layouts, generous whitespace |
+| **Retro / Pixel** | Gaming / nostalgia / fun products | Dot patterns, monospace fonts, 8-bit aesthetic, pixel borders |
+| **Organic / Soft** | Health / wellness / education / kids | Rounded blob shapes, pastel tones, wavy section dividers |
+
+#### Design Rules
+- Use the project's color palette from SPEC.md — NOT default #22c55e / #00ffff
+- Hero section must visually represent the core feature (not just text)
+- Use **at least 2 different section layouts** (e.g. hero + bento grid + feature cards — never all identical cards)
+- Include 1–2 CSS animations (hover effects, auto-playing transitions, or scroll-triggered)
+- Each preview.html must look distinct from other projects
+
+#### Banned Patterns (these repeat too often)
+- Entire page = uniform same-size card grid
+- Default dark background (#09090b) + neon green accent on everything
+- Every section has identical padding, identical structure
+- Feature list rendered as plain bullet points
 
 #### Success Criteria
 1. preview.html is a single self-contained file

@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { existsSync, statSync, readFileSync } from 'fs';
+import { existsSync, statSync, readFileSync, rmSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { neon, tag } from '../lib/colors.mjs';
 import { getValidToken } from '../lib/auth.mjs';
@@ -87,6 +87,15 @@ if (online && projectId) {
 
       if (res.ok) {
         if (!quiet) console.log(`  ${tag.build} ${neon.green('✓')} ${neon.dim('Source code uploaded')}`);
+
+        // ── Clean up local files after successful upload ─────
+        try {
+          if (existsSync(zipPath)) unlinkSync(zipPath);
+          if (existsSync(projectDir)) rmSync(projectDir, { recursive: true, force: true });
+          if (!quiet) console.log(`  ${tag.build} ${neon.dim('Cleaned up local build files')}`);
+        } catch (cleanupErr) {
+          if (!quiet) console.log(`  ${tag.build} ${neon.dim('Warning: cleanup failed — ' + cleanupErr.message)}`);
+        }
       } else {
         if (!quiet) console.log(`  ${tag.error} ${neon.yellow(`Upload failed: HTTP ${res.status}`)}`);
       }

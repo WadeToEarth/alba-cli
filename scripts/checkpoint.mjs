@@ -38,6 +38,46 @@ function validatePhase1() {
   if (missing.length > 0) {
     return `SPEC.md missing sections: ${missing.join(', ')}`;
   }
+
+  // ── Content quality checks ──
+  const qualityErrors = [];
+
+  // 1. Section minimum length — check each required section (h1/h2 level, including subsections)
+  for (let i = 0; i < requiredSections.length; i++) {
+    const headerMatch = content.match(new RegExp(`^(#{1,2})\\s+.*${requiredSections[i]}.*$`, 'mi'));
+    if (headerMatch) {
+      const headerLevel = headerMatch[1].length; // 1 or 2
+      const startIdx = headerMatch.index + headerMatch[0].length;
+      // Find the next header at same or higher level
+      const nextHeader = content.slice(startIdx).match(new RegExp(`^#{1,${headerLevel}}\\s`, 'm'));
+      const endIdx = nextHeader ? startIdx + nextHeader.index : content.length;
+      const sectionBody = content.slice(startIdx, endIdx).trim();
+      if (sectionBody.length < 100) {
+        qualityErrors.push(`Section "${labels[i]}" is too short (${sectionBody.length} chars, need 100+)`);
+      }
+    }
+  }
+
+  // 2. Acceptance Criteria pattern — at least one "User can" / "→" / "sees"
+  if (!content.match(/User can|→|sees/i)) {
+    qualityErrors.push('Missing acceptance criteria patterns (need "User can" / "→" / "sees")');
+  }
+
+  // 3. Color Palette — at least 2 hex codes
+  const hexCodes = content.match(/#[0-9a-fA-F]{6}/g) || [];
+  if (hexCodes.length < 2) {
+    qualityErrors.push(`Color palette needs 2+ hex codes (found ${hexCodes.length})`);
+  }
+
+  // 4. File tree — tree characters or .tsx/.ts file references
+  if (!content.match(/[├└│]/) && !content.match(/\.tsx?\b/)) {
+    qualityErrors.push('Missing file tree (need tree characters ├└│ or .tsx/.ts file references)');
+  }
+
+  if (qualityErrors.length > 0) {
+    return `SPEC.md quality issues:\n  - ${qualityErrors.join('\n  - ')}`;
+  }
+
   return null;
 }
 
@@ -55,6 +95,52 @@ function validatePhase2() {
   if (missing.length > 0) {
     return `DESIGN.md missing sections: ${missing.join(', ')}`;
   }
+
+  // ── Content quality checks ──
+  const qualityErrors = [];
+
+  // 1. Section minimum length — check each required section (h1/h2 level, including subsections)
+  for (let i = 0; i < requiredSections.length; i++) {
+    const headerMatch = content.match(new RegExp(`^(#{1,2})\\s+.*${requiredSections[i]}.*$`, 'mi'));
+    if (headerMatch) {
+      const headerLevel = headerMatch[1].length;
+      const startIdx = headerMatch.index + headerMatch[0].length;
+      const nextHeader = content.slice(startIdx).match(new RegExp(`^#{1,${headerLevel}}\\s`, 'm'));
+      const endIdx = nextHeader ? startIdx + nextHeader.index : content.length;
+      const sectionBody = content.slice(startIdx, endIdx).trim();
+      if (sectionBody.length < 100) {
+        qualityErrors.push(`Section "${labels[i]}" is too short (${sectionBody.length} chars, need 100+)`);
+      }
+    }
+  }
+
+  // 2. Component keywords — props/state/handler
+  if (!content.match(/\bprops\b/i) && !content.match(/\bstate\b/i) && !content.match(/\bhandler\b/i)) {
+    qualityErrors.push('Missing component detail keywords (need "props", "state", or "handler")');
+  }
+
+  // 3. Layout specificity — px/rem/grid/flex/breakpoint values
+  if (!content.match(/\b\d+px\b/) && !content.match(/\b\d+(\.\d+)?rem\b/) &&
+      !content.match(/\bgrid\b/i) && !content.match(/\bflex\b/i) &&
+      !content.match(/\b(sm|md|lg|xl|2xl)\b/)) {
+    qualityErrors.push('Layout lacks specificity (need px/rem values, grid/flex, or breakpoint references)');
+  }
+
+  // 4. Color references — at least 2 hex codes (inheriting SPEC.md palette)
+  const hexCodes = content.match(/#[0-9a-fA-F]{6}/g) || [];
+  if (hexCodes.length < 2) {
+    qualityErrors.push(`Color references need 2+ hex codes from SPEC.md palette (found ${hexCodes.length})`);
+  }
+
+  // 5. Edge case coverage — empty/loading/error keywords
+  if (!content.match(/\bempty\b/i) && !content.match(/\bloading\b/i) && !content.match(/\berror\b/i)) {
+    qualityErrors.push('Edge cases need "empty", "loading", or "error" state coverage');
+  }
+
+  if (qualityErrors.length > 0) {
+    return `DESIGN.md quality issues:\n  - ${qualityErrors.join('\n  - ')}`;
+  }
+
   return null;
 }
 
