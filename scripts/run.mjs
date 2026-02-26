@@ -5,7 +5,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { execSync } from 'child_process';
 import { neon, tag } from '../lib/colors.mjs';
-import { checkHealth, createProject, recordTask, advancePhase, listProjects, joinProject, getArtifacts, downloadProjectZip } from '../lib/api.mjs';
+import { checkHealth, createProject, recordTask, advancePhase, listProjects, joinProject, getArtifacts, downloadProjectZip, stripPhasePrefix } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
 import { PHASES, getTaskReward } from '../lib/phases.mjs';
@@ -254,15 +254,16 @@ async function tryJoinAndDoPhase(online) {
     // Download artifacts
     try {
       const artifacts = await getArtifacts(project.id);
-      for (const [filename, content] of Object.entries(artifacts)) {
+      for (const [rawKey, content] of Object.entries(artifacts)) {
+        const filename = stripPhasePrefix(rawKey);
         writeFileSync(join(projectDir, filename), content, 'utf-8');
       }
     } catch (err) {
       console.log(`  ${neon.dim(timestamp())} ${tag.error} ${neon.yellow('Artifact download failed:')} ${neon.dim(err.message)}`);
     }
 
-    // Phase 4+: download source code
-    if (currentPhase >= 4) {
+    // Phase 2+: download previous phase source code
+    if (currentPhase >= 2) {
       try {
         const zipBuffer = await downloadProjectZip(project.id);
         if (zipBuffer) {

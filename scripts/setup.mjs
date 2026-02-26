@@ -5,7 +5,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { execSync } from 'child_process';
 import { neon, tag } from '../lib/colors.mjs';
-import { checkHealth, createProject, claimNextProject, getArtifacts, downloadProjectZip } from '../lib/api.mjs';
+import { checkHealth, createProject, claimNextProject, getArtifacts, downloadProjectZip, stripPhasePrefix } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
 import { randomProjectName, randomTag, getIdeaSource, generateDiverseIdea } from '../lib/project-names.mjs';
@@ -183,7 +183,8 @@ async function tryAutoJoin() {
   try {
     const artifacts = await getArtifacts(projectId);
     let artifactCount = 0;
-    for (const [filename, content] of Object.entries(artifacts)) {
+    for (const [rawKey, content] of Object.entries(artifacts)) {
+      const filename = stripPhasePrefix(rawKey);
       writeFileSync(join(projectDir, filename), content, 'utf-8');
       artifactCount++;
     }
@@ -193,8 +194,8 @@ async function tryAutoJoin() {
       if (dlSpinner) dlSpinner.info(neon.dim('No artifacts uploaded yet'));
     }
 
-    // Phase 4+: also download full source code
-    if (currentPhase >= 4) {
+    // Phase 2+: also download previous phase source code
+    if (currentPhase >= 2) {
       let srcSpinner;
       if (!quiet) srcSpinner = ora({ text: 'Downloading source code...', color: 'cyan' }).start();
       try {
