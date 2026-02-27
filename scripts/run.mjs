@@ -1,9 +1,10 @@
 import http from 'http';
 import ora from 'ora';
 import { mkdirSync, writeFileSync, existsSync, readdirSync, rmSync } from 'fs';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { homedir } from 'os';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
+import { safePath } from '../lib/safe-path.mjs';
 import { neon, tag } from '../lib/colors.mjs';
 import { checkHealth, createProject, recordTask, advancePhase, listProjects, joinProject, getArtifacts, downloadProjectZip, stripPhasePrefix } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
@@ -34,7 +35,7 @@ async function autoLogin() {
     console.log();
 
     const server = http.createServer((req, res) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Origin', 'https://alba-run.vercel.app');
       res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -196,6 +197,7 @@ async function safeAdvancePhase(online, projectId, nextPhase) {
 
 // ── Project Build Loop ───────────────────────────────────
 
+const BUILDS_ROOT = join(homedir(), '.alba', 'builds');
 let running = true;
 let totalProjects = 0;
 let totalTasksCompleted = 0;
@@ -256,7 +258,7 @@ async function tryJoinAndDoPhase(online) {
       const artifacts = await getArtifacts(project.id);
       for (const [rawKey, content] of Object.entries(artifacts)) {
         const filename = stripPhasePrefix(rawKey);
-        writeFileSync(join(projectDir, filename), content, 'utf-8');
+        writeFileSync(safePath(projectDir, filename), content, 'utf-8');
       }
     } catch (err) {
       console.log(`  ${neon.dim(timestamp())} ${tag.error} ${neon.yellow('Artifact download failed:')} ${neon.dim(err.message)}`);
@@ -269,7 +271,7 @@ async function tryJoinAndDoPhase(online) {
         if (zipBuffer) {
           const zipPath = join(projectDir, '..', `${project.id}-download.zip`);
           writeFileSync(zipPath, zipBuffer);
-          execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
+          execFileSync('unzip', ['-o', zipPath, '-d', projectDir], { timeout: 30000 });
           console.log(`  ${neon.dim(timestamp())} ${tag.system} ${neon.green('Source code downloaded')}`);
         }
       } catch (err) {
@@ -283,6 +285,15 @@ async function tryJoinAndDoPhase(online) {
     console.log();
 
     await executePhase(online, project.id, project.name, projectDir, currentPhase);
+
+    // Clean up build directory after phase completes
+    try {
+      const zipPath = join(projectDir, '..', `${project.id}.zip`);
+      if (existsSync(zipPath)) rmSync(zipPath, { force: true });
+      const dlZipPath = join(projectDir, '..', `${project.id}-download.zip`);
+      if (existsSync(dlZipPath)) rmSync(dlZipPath, { force: true });
+      if (existsSync(projectDir)) rmSync(projectDir, { recursive: true, force: true });
+    } catch {}
 
     totalProjects++;
     console.log();
@@ -560,6 +571,13 @@ async function mainLoop(online) {
       }
     } catch (err) {
       console.log(`  ${tag.error} ${neon.red('Project build failed:')} ${neon.dim(err.message || 'unknown')}`);
+      // Clean up any builds from failed iteration
+      try {
+        const leftovers = readdirSync(BUILDS_ROOT);
+        for (const entry of leftovers) {
+          rmSync(join(BUILDS_ROOT, entry), { recursive: true, force: true });
+        }
+      } catch {}
       console.log();
     }
 
@@ -570,6 +588,14 @@ async function mainLoop(online) {
     if (!running) break;
     console.log();
   }
+
+  // Clean up any remaining builds before exit
+  try {
+    const leftovers = readdirSync(BUILDS_ROOT);
+    for (const entry of leftovers) {
+      rmSync(join(BUILDS_ROOT, entry), { recursive: true, force: true });
+    }
+  } catch {}
 
   console.log();
   console.log(neon.green('  \u2550\u2550\u2550 Agent shutting down \u2550\u2550\u2550'));
@@ -612,12 +638,12 @@ if (isFirstRun()) {
 }
 
 // ── Clean up leftover builds from previous runs ──────────
-const BUILDS_ROOT = join(homedir(), '.alba', 'builds');
 if (existsSync(BUILDS_ROOT)) {
   try {
     const leftovers = readdirSync(BUILDS_ROOT);
     if (leftovers.length > 0) {
       for (const entry of leftovers) {
+        safePath(BUILDS_ROOT, entry);
         rmSync(join(BUILDS_ROOT, entry), { recursive: true, force: true });
       }
       console.log(`  ${tag.system} ${neon.dim(`Cleaned up ${leftovers.length} leftover build(s)`)}`);

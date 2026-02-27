@@ -3,7 +3,8 @@ import ora from 'ora';
 import { join } from 'path';
 import { homedir } from 'os';
 import { mkdirSync, writeFileSync } from 'fs';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
+import { safePath } from '../lib/safe-path.mjs';
 import { neon, tag } from '../lib/colors.mjs';
 import { checkHealth, listProjects, joinProject, downloadProjectZip, getArtifacts } from '../lib/api.mjs';
 import { printLogo } from '../lib/ascii.mjs';
@@ -23,7 +24,7 @@ async function autoLogin() {
     console.log();
 
     const server = http.createServer((req, res) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Origin', 'https://alba-run.vercel.app');
       res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -238,7 +239,7 @@ try {
   const artifacts = await getArtifacts(selectedProject.id);
   let artifactCount = 0;
   for (const [filename, content] of Object.entries(artifacts)) {
-    writeFileSync(join(projectDir, filename), content, 'utf-8');
+    writeFileSync(safePath(projectDir, filename), content, 'utf-8');
     artifactCount++;
   }
   if (artifactCount > 0) {
@@ -255,7 +256,7 @@ try {
       if (zipBuffer) {
         const zipPath = join(projectDir, '..', `${selectedProject.id}-download.zip`);
         writeFileSync(zipPath, zipBuffer);
-        execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
+        execFileSync('unzip', ['-o', zipPath, '-d', projectDir], { timeout: 30000 });
         srcSpinner.succeed(neon.green(`Source code extracted (${(zipBuffer.length / 1024).toFixed(0)} KB)`));
       } else {
         srcSpinner.info(neon.dim('No source code uploaded yet'));

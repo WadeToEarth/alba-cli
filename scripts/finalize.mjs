@@ -1,9 +1,13 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { existsSync, statSync, readFileSync, rmSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { join, relative } from 'path';
+import { homedir } from 'os';
 import { neon, tag } from '../lib/colors.mjs';
 import { getValidToken } from '../lib/auth.mjs';
 import { API_BASE_URL } from '../lib/config.mjs';
+import { safePath } from '../lib/safe-path.mjs';
+
+const BUILDS_ROOT = join(homedir(), '.alba', 'builds');
 
 // ── Parse arguments ──────────────────────────────────────
 
@@ -65,10 +69,9 @@ if (online && projectId) {
   try {
     const zipPath = join(projectDir, '..', `${projectId}.zip`);
     if (!quiet) console.log(`  ${tag.build} ${neon.cyan('Packaging source code...')}`);
-    execSync(
-      `cd "${projectDir}" && zip -r "${zipPath}" . -x "node_modules/*" ".next/*" 2>/dev/null`,
-      { timeout: 30000 }
-    );
+    execFileSync('zip', ['-r', zipPath, '.', '-x', 'node_modules/*', '.next/*'], {
+      cwd: projectDir, timeout: 30000
+    });
 
     const stats = statSync(zipPath);
     if (!quiet) console.log(`  ${tag.build} ${neon.dim(`ZIP: ${(stats.size / 1024).toFixed(0)} KB`)}`);
@@ -102,6 +105,7 @@ try {
     const zipPath = join(projectDir, '..', `${projectId}.zip`);
     if (existsSync(zipPath)) unlinkSync(zipPath);
   }
+  safePath(BUILDS_ROOT, relative(BUILDS_ROOT, projectDir));
   if (existsSync(projectDir)) rmSync(projectDir, { recursive: true, force: true });
   if (!quiet) console.log(`  ${tag.build} ${neon.dim('Cleaned up local build files')}`);
 } catch (cleanupErr) {

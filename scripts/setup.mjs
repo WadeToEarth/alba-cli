@@ -3,9 +3,10 @@ import ora from 'ora';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { neon, tag } from '../lib/colors.mjs';
 import { checkHealth, createProject, claimNextProject, getArtifacts, downloadProjectZip, stripPhasePrefix } from '../lib/api.mjs';
+import { safePath } from '../lib/safe-path.mjs';
 import { printLogo } from '../lib/ascii.mjs';
 import { TIMING } from '../lib/config.mjs';
 import { randomProjectName, randomTag, getIdeaSource, generateDiverseIdea } from '../lib/project-names.mjs';
@@ -25,7 +26,7 @@ async function autoLogin() {
     if (!quiet) console.log();
 
     const server = http.createServer((req, res) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Origin', 'https://alba-run.vercel.app');
       res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -185,7 +186,7 @@ async function tryAutoJoin() {
     let artifactCount = 0;
     for (const [rawKey, content] of Object.entries(artifacts)) {
       const filename = stripPhasePrefix(rawKey);
-      writeFileSync(join(projectDir, filename), content, 'utf-8');
+      writeFileSync(safePath(projectDir, filename), content, 'utf-8');
       artifactCount++;
     }
     if (artifactCount > 0) {
@@ -203,7 +204,7 @@ async function tryAutoJoin() {
         if (zipBuffer) {
           const zipPath = join(projectDir, '..', `${projectId}-download.zip`);
           writeFileSync(zipPath, zipBuffer);
-          execSync(`unzip -o "${zipPath}" -d "${projectDir}" 2>/dev/null`, { timeout: 30000 });
+          execFileSync('unzip', ['-o', zipPath, '-d', projectDir], { timeout: 30000 });
           if (srcSpinner) srcSpinner.succeed(neon.green(`Source code extracted (${(zipBuffer.length / 1024).toFixed(0)} KB)`));
         } else {
           if (srcSpinner) srcSpinner.info(neon.dim('No source code uploaded yet'));

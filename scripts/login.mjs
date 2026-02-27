@@ -13,7 +13,7 @@ console.log();
 // Find an available port and start local server
 const server = http.createServer((req, res) => {
   // CORS headers for the callback
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', 'https://alba-run.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
