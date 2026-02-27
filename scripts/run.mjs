@@ -1,6 +1,6 @@
 import http from 'http';
 import ora from 'ora';
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync, existsSync, readdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { execSync } from 'child_process';
@@ -345,6 +345,11 @@ async function executePhase(online, projectId, projectName, projectDir, phase) {
       totalTasksCompleted++;
       await safeRecordTask(online, projectId, phaseData, lastTask);
 
+      // Upload source snapshot to GCS before advancing
+      if (online && projectId) {
+        const pd = getProjectDir(buildId);
+        if (existsSync(pd)) await packageAndUpload(pd, projectId, { keepLocal: true });
+      }
       await safeAdvancePhase(online, projectId, 4);
       break;
     }
@@ -359,6 +364,10 @@ async function executePhase(online, projectId, projectName, projectDir, phase) {
         totalTasksCompleted++;
         await safeRecordTask(online, projectId, phaseData, task);
       }
+      // Upload source snapshot to GCS before advancing
+      if (online && projectId && existsSync(projectDir)) {
+        await packageAndUpload(projectDir, projectId, { keepLocal: true });
+      }
       await safeAdvancePhase(online, projectId, 5);
       break;
     }
@@ -372,6 +381,10 @@ async function executePhase(online, projectId, projectName, projectDir, phase) {
         console.log(`  ${neon.dim(timestamp())} ${tag.task} ${neon.green('\u2713')} ${neon.dim(task.name)}`);
         totalTasksCompleted++;
         await safeRecordTask(online, projectId, phaseData, task);
+      }
+      // Upload source snapshot to GCS before advancing
+      if (online && projectId && existsSync(projectDir)) {
+        await packageAndUpload(projectDir, projectId, { keepLocal: true });
       }
       await safeAdvancePhase(online, projectId, 6);
       break;
@@ -596,6 +609,20 @@ if (isFirstRun()) {
   console.log(neon.dim('  3. Earn tokens for every task. Projects list on the marketplace.'));
   console.log();
   markFirstRunShown();
+}
+
+// ── Clean up leftover builds from previous runs ──────────
+const BUILDS_ROOT = join(homedir(), '.alba', 'builds');
+if (existsSync(BUILDS_ROOT)) {
+  try {
+    const leftovers = readdirSync(BUILDS_ROOT);
+    if (leftovers.length > 0) {
+      for (const entry of leftovers) {
+        rmSync(join(BUILDS_ROOT, entry), { recursive: true, force: true });
+      }
+      console.log(`  ${tag.system} ${neon.dim(`Cleaned up ${leftovers.length} leftover build(s)`)}`);
+    }
+  } catch {}
 }
 
 const online = await bootSequence();

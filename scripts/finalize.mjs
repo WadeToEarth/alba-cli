@@ -87,15 +87,6 @@ if (online && projectId) {
 
       if (res.ok) {
         if (!quiet) console.log(`  ${tag.build} ${neon.green('✓')} ${neon.dim('Source code uploaded')}`);
-
-        // ── Clean up local files after successful upload ─────
-        try {
-          if (existsSync(zipPath)) unlinkSync(zipPath);
-          if (existsSync(projectDir)) rmSync(projectDir, { recursive: true, force: true });
-          if (!quiet) console.log(`  ${tag.build} ${neon.dim('Cleaned up local build files')}`);
-        } catch (cleanupErr) {
-          if (!quiet) console.log(`  ${tag.build} ${neon.dim('Warning: cleanup failed — ' + cleanupErr.message)}`);
-        }
       } else {
         if (!quiet) console.log(`  ${tag.error} ${neon.yellow(`Upload failed: HTTP ${res.status}`)}`);
       }
@@ -103,6 +94,18 @@ if (online && projectId) {
   } catch (err) {
     if (!quiet) console.log(`  ${tag.error} ${neon.yellow('Package/upload error:')} ${neon.dim(err.message || 'unknown')}`);
   }
+}
+
+// ── Clean up local build files ─────────────────────────────
+try {
+  if (projectId) {
+    const zipPath = join(projectDir, '..', `${projectId}.zip`);
+    if (existsSync(zipPath)) unlinkSync(zipPath);
+  }
+  if (existsSync(projectDir)) rmSync(projectDir, { recursive: true, force: true });
+  if (!quiet) console.log(`  ${tag.build} ${neon.dim('Cleaned up local build files')}`);
+} catch (cleanupErr) {
+  if (!quiet) console.log(`  ${tag.build} ${neon.dim('Warning: cleanup failed — ' + cleanupErr.message)}`);
 }
 
 // ── Summary ──────────────────────────────────────────────
